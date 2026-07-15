@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sổ Quỹ Cho Vay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --paper:#F3F4EE;
+    --surface:#FFFFFF;
+    --ink:#16233F;
+    --ink-soft:#4B5773;
+    --line:#DBDACF;
+    --brass:#B8863B;
+    --brass-dark:#8F6A2C;
+    --brass-wash:#F2E7CE;
+    --success:#2F6F4E;
+    --success-wash:#E2EEE6;
+    --warning:#C97B2E;
+    --warning-wash:#F8E8D2;
+    --danger:#A63C32;
+    --danger-wash:#F5E0DD;
+    --neutral:#6B7280;
+    --neutral-wash:#E9E9E3;
+    --font-display:'Source Serif 4', Georgia, serif;
+    --font-body:'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+    --font-mono:'IBM Plex Mono','SFMono-Regular', monospace;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--font-body);
+    min-height:100vh;
+  }
+  ::selection{background:var(--brass-wash);}
+  button{font-family:inherit;cursor:pointer;}
+  input,select{font-family:inherit;}
+  .hidden{display:none !important;}
+  .mono{font-family:var(--font-mono);}
+
+  /* ---------- Seal / logo ---------- */
+  .seal{
+    display:inline-flex;align-items:center;justify-content:center;
+    border:2px solid var(--brass);border-radius:50%;
+    color:var(--brass);font-family:var(--font-display);font-weight:700;
+    position:relative;
+  }
+  .seal::after{
+    content:"";position:absolute;inset:4px;border:1px dashed var(--brass);border-radius:50%;
+  }
+  .seal.lg{width:88px;height:88px;font-size:1.6rem;}
+  .seal.sm{width:38px;height:38px;font-size:0.85rem;}
+
+  /* ---------- Gate screens ---------- */
+  .gate-wrap{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    background-image:repeating-linear-gradient(180deg, rgba(22,35,63,0.035) 0px, rgba(22,35,63,0.035) 1px, transparent 1px, transparent 29px);
+  }
+  .gate-card{
+    background:var(--surface);border:1px solid var(--line);border-radius:16px;
+    padding:36px 32px;max-width:400px;width:100%;box-shadow:0 8px 30px rgba(22,35,63,0.08);
+    text-align:center;
+  }
+  .gate-title{font-family:var(--font-display);font-size:1.5rem;margin:16px 0 4px;color:var(--ink);}
+  .gate-sub{color:var(--ink-soft);font-size:0.88rem;margin-bottom:22px;}
+  .field{text-align:left;margin-bottom:14px;}
+  .field label{display:block;font-size:0.78rem;font-weight:600;color:var(--ink-soft);margin-bottom:5px;letter-spacing:.02em;}
+  .field input,.field select,.field textarea{
+    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:7px;font-size:0.95rem;background:var(--paper);color:var(--ink);
+  }
+  .field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  .field small.hint{display:block;margin-top:4px;color:var(--neutral);font-size:0.75rem;}
+  .field .preview-line{margin-top:6px;font-family:var(--font-mono);font-size:0.85rem;color:var(--ink-soft);background:var(--brass-wash);padding:6px 10px;border-radius:6px;}
+
+  .btn{border:none;border-radius:7px;padding:10px 18px;font-weight:600;font-size:0.9rem;transition:transform .05s ease, opacity .15s ease;}
+  .btn:active{transform:scale(0.98);}
+  .btn-primary{background:var(--ink);color:var(--paper);}
+  .btn-primary:hover{opacity:0.88;}
+  .btn-brass{background:var(--brass);color:#241a08;}
+  .btn-brass:hover{background:var(--brass-dark);}
+  .btn-outline{background:transparent;border:1px solid var(--ink);color:var(--ink);}
+  .btn-outline:hover{background:var(--ink);color:var(--paper);}
+  .btn-danger{background:var(--danger);color:#fff;}
+  .btn-danger:hover{opacity:0.88;}
+  .btn-ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--line);}
+  .btn-block{width:100%;}
+  .btn[disabled]{opacity:0.45;cursor:not-allowed;}
+  .err-msg{color:var(--danger);font-size:0.82rem;margin-top:8px;min-height:1.1em;}
+
+  /* ---------- App shell ---------- */
+  #appShell{display:none;min-height:100vh;flex-direction:column;}
+  header.topbar{
+    background:var(--ink);color:var(--paper);padding:14px 24px;
+    display:flex;align-items:center;justify-content:space-between;gap:16px;
+    border-bottom:3px solid var(--brass);flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand-text .eyebrow{font-size:0.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);font-weight:600;}
+  .brand-text .title{font-family:var(--font-display);font-size:1.25rem;line-height:1.1;}
+  .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .topbar-right select{background:var(--ink);color:var(--paper);border:1px solid var(--brass);border-radius:6px;padding:7px 10px;font-size:0.85rem;}
+  .icon-btn{background:transparent;border:1px solid rgba(244,243,238,0.35);color:var(--paper);border-radius:6px;padding:7px 10px;font-size:0.85rem;}
+  .icon-btn:hover{background:rgba(244,243,238,0.12);}
+
+  main{flex:1;max-width:1240px;margin:0 auto;padding:22px 24px 60px;width:100%;}
+
+  .legal-banner{
+    display:none;background:var(--danger-wash);border:1px solid var(--danger);color:var(--danger);
+    border-radius:8px;padding:10px 16px;font-size:0.85rem;margin-bottom:16px;font-weight:600;
+  }
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;cursor:default;transition:box-shadow .15s ease;}
+  .card.clickable{cursor:pointer;}
+  .card.clickable:hover{box-shadow:0 4px 14px rgba(22,35,63,0.1);}
+  .card.active-filter{border-color:var(--brass);box-shadow:0 0 0 2px var(--brass-wash);}
+  .card .label{font-size:0.68rem;text-transform:uppercase;letter-spacing:.09em;color:var(--neutral);font-weight:600;margin-bottom:6px;}
+  .card .value{font-family:var(--font-mono);font-size:1.5rem;font-weight:600;color:var(--ink);}
+  .card.warn .value{color:var(--warning);}
+  .card.danger .value{color:var(--danger);}
+  .card.ok .value{color:var(--success);}
+
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;justify-content:space-between;}
+  .toolbar-left{display:flex;gap:10px;flex-wrap:wrap;flex:1;}
+  .toolbar input[type=text]{padding:9px 12px;border:1px solid var(--line);border-radius:7px;min-width:180px;background:var(--surface);}
+  .toolbar select{padding:9px 12px;border:1px solid var(--line);border-radius:7px;background:var(--surface);}
+
+  .tabs{display:flex;gap:4px;margin-bottom:16px;border-bottom:1px solid var(--line);}
+  .tab-btn{background:transparent;border:none;padding:10px 16px;font-size:0.88rem;font-weight:600;color:var(--ink-soft);border-bottom:2px solid transparent;}
+  .tab-btn.active{color:var(--ink);border-bottom-color:var(--brass);}
+
+  table.ledger{width:100%;border-collapse:collapse;background:var(--surface);border-radius:var(--radius);overflow:hidden;}
+  table.ledger thead tr{border-bottom:2px solid var(--ink);}
+  table.ledger th{text-align:left;padding:11px 12px;font-size:0.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);}
+  table.ledger td{padding:12px;border-bottom:1px solid var(--line);font-size:0.88rem;vertical-align:middle;}
+  table.ledger tbody tr{cursor:pointer;transition:background .1s ease;}
+  table.ledger tbody tr:hover{background:var(--brass-wash);}
+  table.ledger td.num{font-family:var(--font-mono);text-align:right;}
+  .empty-state{text-align:center;padding:60px 20px;color:var(--ink-soft);}
+  .empty-state .big{font-family:var(--font-display);font-size:1.3rem;color:var(--ink);margin-bottom:8px;}
+
+  .rate-flag{display:inline-block;font-family:var(--font-mono);font-size:0.72rem;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;}
+  .rate-flag.warn{background:var(--warning-wash);color:var(--warning);}
+  .rate-flag.danger{background:var(--danger-wash);color:var(--danger);}
+
+  /* stamp badge */
+  .stamp{
+    display:inline-block;font-family:var(--font-display);font-weight:700;text-transform:uppercase;
+    letter-spacing:.06em;font-size:0.68rem;padding:5px 11px;border:2px solid currentColor;border-radius:5px;
+    transform:rotate(-3deg);position:relative;background:transparent;
+  }
+  .stamp.ok{color:var(--success);}
+  .stamp.warn{color:var(--warning);}
+  .stamp.danger{color:var(--danger);}
+  .stamp.neutral{color:var(--neutral);transform:rotate(0deg);}
+
+  /* card list for mobile */
+  .loan-cards{display:none;flex-direction:column;gap:10px;}
+  .loan-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;cursor:pointer;}
+  .loan-card .row1{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .loan-card .name{font-weight:600;}
+  .loan-card .meta{display:flex;justify-content:space-between;font-size:0.82rem;color:var(--ink-soft);font-family:var(--font-mono);}
+
+  @media (max-width:760px){
+    table.ledger{display:none;}
+    .loan-cards{display:flex;}
+    header.topbar{padding:12px 16px;}
+    main{padding:16px 16px 50px;}
+  }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(22,35,63,0.55);display:flex;align-items:flex-start;justify-content:center;
+    padding:40px 16px;overflow-y:auto;z-index:100;
+  }
+  .modal-card{background:var(--surface);border-radius:14px;max-width:600px;width:100%;padding:26px 28px;box-shadow:0 12px 40px rgba(0,0,0,0.25);}
+  .modal-card h2{font-family:var(--font-display);margin:0 0 4px;font-size:1.25rem;}
+  .modal-card .modal-sub{color:var(--ink-soft);font-size:0.85rem;margin-bottom:18px;}
+  .modal-close-row{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;}
+  @media (max-width:520px){.two-col{grid-template-columns:1fr;}}
+
+  .detail-section{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
+  .detail-section h3{font-size:0.82rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin:0 0 10px;}
+  .kv-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:0.88rem;margin-bottom:6px;}
+  .kv-grid .k{color:var(--ink-soft);}
+  .kv-grid .v{font-family:var(--font-mono);font-weight:600;text-align:right;}
+  .history-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line);font-size:0.85rem;}
+  .history-row:last-child{border-bottom:none;}
+  .history-row .amt{font-family:var(--font-mono);font-weight:600;color:var(--success);}
+  .small-note{font-size:0.76rem;color:var(--neutral);margin-top:2px;}
+
+  .log-row{padding:9px 0;border-bottom:1px solid var(--line);font-size:0.85rem;display:flex;justify-content:space-between;gap:10px;}
+  .log-row .who{font-weight:600;}
+  .log-row .when{font-family:var(--font-mono);color:var(--neutral);font-size:0.78rem;white-space:nowrap;}
+
+  .staff-chip{display:inline-flex;align-items:center;gap:6px;background:var(--neutral-wash);border-radius:20px;padding:5px 10px;font-size:0.82rem;margin:3px 4px 3px 0;}
+  .staff-chip button{background:none;border:none;color:var(--danger);font-weight:700;padding:0 2px;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);
+    padding:11px 20px;border-radius:8px;font-size:0.88rem;z-index:200;box-shadow:0 6px 18px rgba(0,0,0,.25);
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ FIRST RUN SETUP ============ -->
+<div id="setupGate" class="gate-wrap hidden">
+  <div class="gate-card">
+    <div class="seal lg" style="margin:0 auto;">SQ</div>
+    <div class="gate-title">Thiết lập Sổ Quỹ</div>
+    <div class="gate-sub">Khởi tạo lần đầu — chỉ làm một lần trên toàn bộ dữ liệu chung.</div>
+    <div class="field">
+      <label>Tên chủ sổ</label>
+      <input type="text" id="setupOwnerName" placeholder="VD: Anh Minh">
+    </div>
+    <div class="field">
+      <label>Mã PIN chung (mở app — cho cả chủ &amp; nhân viên)</label>
+      <input type="password" id="setupPin" inputmode="numeric" placeholder="Tối thiểu 4 số">
+    </div>
+    <div class="field">
+      <label>Mã PIN Quản trị (chỉ chủ biết — để sửa/xoá dữ liệu gốc)</label>
+      <input type="password" id="setupAdminPin" inputmode="numeric" placeholder="Khác với PIN chung">
+    </div>
+    <div class="err-msg" id="setupErr"></div>
+    <button class="btn btn-brass btn-block" onclick="doSetup()">Khởi tạo &amp; bắt đầu</button>
+  </div>
+</div>
+
+<!-- ============ PIN GATE ============ -->
+<div id="pinGate" class="gate-wrap hidden">
+  <div class="gate-card">
+    <div class="seal lg" style="margin:0 auto;">SQ</div>
+    <div class="gate-title">Sổ Quỹ Cho Vay</div>
+    <div class="gate-sub" id="pinGateSub">Nhập mã PIN để mở sổ.</div>
+    <div class="field">
+      <input type="password" id="pinInput" inputmode="numeric" placeholder="Mã PIN" autofocus>
+    </div>
+    <div class="err-msg" id="pinErr"></div>
+    <button class="btn btn-primary btn-block" onclick="tryUnlock()">Mở sổ</button>
+  </div>
+</div>
+
+<!-- ============ MAIN APP ============ -->
+<div id="appShell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="seal sm">SQ</div>
+      <div class="brand-text">
+        <div class="eyebrow" id="ownerNameLabel">Sổ Quỹ</div>
+        <div class="title">Sổ Quỹ Cho Vay</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <select id="currentUserSelect" onchange="onUserChange()"></select>
+      <button class="icon-btn" onclick="openActivityLog()">Nhật ký</button>
+      <button class="icon-btn" onclick="openSettings()">Cài đặt</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="legal-banner" id="legalBanner"></div>
+
+    <div class="cards" id="dashboardCards"></div>
+
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <input type="text" id="searchInput" placeholder="Tìm theo tên khách..." oninput="renderLoansList()">
+        <select id="statusFilter" onchange="renderLoansList()">
+          <option value="active">Đang hoạt động (tất cả)</option>
+          <option value="CHUA_DEN_HAN">Chưa đến hạn</option>
+          <option value="NHAC_NO">Nhắc nợ ngay</option>
+          <option value="QUA_HAN">Quá hạn</option>
+          <option value="TAT_TOAN">Đã tất toán</option>
+        </select>
+        <select id="sortBy" onchange="renderLoansList()">
+          <option value="due_asc">Sắp đến hạn trước</option>
+          <option value="principal_desc">Gốc: cao → thấp</option>
+          <option value="name_asc">Tên: A → Z</option>
+          <option value="rate_desc">Lãi suất/năm: cao → thấp</option>
+        </select>
+      </div>
+      <button class="btn btn-brass" onclick="openLoanForm()">+ Thêm khoản vay</button>
+    </div>
+
+    <table class="ledger">
+      <thead>
+        <tr>
+          <th>Khách hàng</th>
+          <th style="text-align:right;">Gốc</th>
+          <th style="text-align:right;">Lãi / kỳ</th>
+          <th style="text-align:right;">%/năm</th>
+          <th>Đến hạn tiếp</th>
+          <th>Trạng thái</th>
+        </tr>
+      </thead>
+      <tbody id="ledgerBody"></tbody>
+    </table>
+    <div class="loan-cards" id="loanCardsList"></div>
+    <div id="emptyState" class="empty-state hidden">
+      <div class="big">Chưa có khoản vay nào</div>
+      <div>Bấm "+ Thêm khoản vay" ở trên để bắt đầu ghi sổ.</div>
+    </div>
+  </main>
+</div>
+
+<div id="modalRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+/* ============================================================
+   SỔ QUỸ CHO VAY — state & storage
+   ============================================================ */
+let settings = null;
+let loans = [];
+let activityLog = [];
+let currentUser = null;
+let legalFilterOnly = false;
+
+const STATUS = { CHUA_DEN_HAN:'CHUA_DEN_HAN', NHAC_NO:'NHAC_NO', QUA_HAN:'QUA_HAN', TAT_TOAN:'TAT_TOAN' };
+const STATUS_LABEL = {
+  CHUA_DEN_HAN:'Chưa đến hạn', NHAC_NO:'Nhắc nợ ngay', QUA_HAN:'Quá hạn', TAT_TOAN:'Đã tất toán'
+};
+
+/* ---------- Firebase init ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyA9BMd1RnQd7cJWSXvF_L-PS6ScJeBX6po",
+  authDomain: "nhatkytaichinhlinhhang.firebaseapp.com",
+  projectId: "nhatkytaichinhlinhhang",
+  storageBucket: "nhatkytaichinhlinhhang.firebasestorage.app",
+  messagingSenderId: "329775782404",
+  appId: "1:329775782404:web:f30a735e95f6d18e97b351"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+/* ---------- storage helpers (Firestore) ---------- */
+async function storageGet(key, shared){
+  try{
+    const snap = await db.collection('soquy').doc(key).get();
+    if(!snap.exists) return null;
+    return snap.data().value;
+  }catch(e){ console.error('storage get failed', key, e); return null; }
+}
+async function storageSet(key, value, shared){
+  try{
+    await db.collection('soquy').doc(key).set({ value: value });
+    return { key, value, shared };
+  }
+  catch(e){ console.error('storage set failed', key, e); showToast('Lỗi lưu dữ liệu — thử lại.'); return null; }
+}
+
+async function loadSettings(){
+  const raw = await storageGet('settings', true);
+  settings = raw ? JSON.parse(raw) : null;
+}
+async function saveSettings(){
+  await storageSet('settings', JSON.stringify(settings), true);
+}
+async function loadLoans(){
+  const raw = await storageGet('loans', true);
+  loans = raw ? JSON.parse(raw) : [];
+}
+async function saveLoans(){
+  await storageSet('loans', JSON.stringify(loans), true);
+}
+async function loadActivityLog(){
+  const raw = await storageGet('activity-log', true);
+  activityLog = raw ? JSON.parse(raw) : [];
+}
+async function saveActivityLog(){
+  if(activityLog.length > 400) activityLog = activityLog.slice(0,400);
+  await storageSet('activity-log', JSON.stringify(activityLog), true);
+}
+async function logActivity(action, detail){
+  activityLog.unshift({
+    time: new Date().toISOString(),
+    user: currentUser || '(chưa chọn)',
+    action, detail
+  });
+  await saveActivityLog();
+}
+
+/* ---------- date & number utils ---------- */
+function todayStr(){
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function addDaysToStr(dateStr, days){
+  const d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()+Number(days));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function daysBetween(fromStr, toStr){
+  const a = new Date(fromStr+'T00:00:00'), b = new Date(toStr+'T00:00:00');
+  return Math.round((b-a)/86400000);
+}
+function fmtDateVN(dateStr){
+  if(!dateStr) return '—';
+  const [y,m,d] = dateStr.split('-');
+  return `${d}/${m}/${y}`;
+}
+function fmtMoney(n){
+  n = Number(n)||0;
+  return n.toLocaleString('vi-VN') + 'đ';
+}
+function fmtPct(n){
+  return (Math.round(n*10)/10).toLocaleString('vi-VN') + '%';
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+
+/* ---------- core computations ---------- */
+function calcLaiKy(loan){
+  if(!loan.donGiaLai || !loan.tongTienGoc || !loan.chuKy) return 0;
+  return Math.round(loan.donGiaLai * (loan.tongTienGoc/1000000) * loan.chuKy);
+}
+function calcLaiSuatNam(loan){
+  if(!loan.donGiaLai) return 0;
+  return loan.donGiaLai * 0.0365;
+}
+function calcNgayDenHanTiep(loan){
+  const anchor = loan.ngayDongLaiGanNhat || loan.ngayBatDau;
+  if(!anchor || !loan.chuKy) return null;
+  return addDaysToStr(anchor, loan.chuKy);
+}
+function calcTrangThai(loan, dueSoonDays){
+  if(loan.tatToan) return STATUS.TAT_TOAN;
+  const denHan = calcNgayDenHanTiep(loan);
+  if(!denHan) return STATUS.CHUA_DEN_HAN;
+  const d = daysBetween(todayStr(), denHan);
+  if(d < 0) return STATUS.QUA_HAN;
+  if(d <= dueSoonDays) return STATUS.NHAC_NO;
+  return STATUS.CHUA_DEN_HAN;
+}
+function calcTongSoNgayVay(loan){
+  if(!loan.ngayBatDau) return 0;
+  return Math.max(0, daysBetween(loan.ngayBatDau, todayStr()));
+}
+function calcTongLaiDaThu(loan){
+  return (loan.lichSuThuLai||[]).reduce((s,x)=>s+Number(x.soTien||0),0);
+}
+function calcLaiTheoNam(loan){
+  const byYear = {};
+  (loan.lichSuThuLai||[]).forEach(x=>{
+    const y = (x.ngayThu||'').slice(0,4) || '?';
+    byYear[y] = (byYear[y]||0) + Number(x.soTien||0);
+  });
+  return byYear;
+}
+function derive(loan){
+  const laiKy = calcLaiKy(loan);
+  const laiSuatNam = calcLaiSuatNam(loan);
+  const trangThai = calcTrangThai(loan, settings.dueSoonDays||3);
+  const denHanTiep = calcNgayDenHanTiep(loan);
+  const legal = laiSuatNam >= 100 ? 'danger' : (laiSuatNam > 20 ? 'warn' : null);
+  return {
+    laiKy, laiSuatNam, trangThai, denHanTiep, legal,
+    tongSoNgayVay: calcTongSoNgayVay(loan),
+    soKyDaThu: (loan.lichSuThuLai||[]).length,
+    tongLaiDaThu: calcTongLaiDaThu(loan),
+    laiTheoNam: calcLaiTheoNam(loan)
+  };
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+async function init(){
+  await loadSettings();
+  if(!settings){
+    document.getElementById('setupGate').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('pinGate').classList.remove('hidden');
+  document.getElementById('pinGateSub').textContent = `Sổ của ${settings.ownerName || 'chủ sổ'}. Nhập mã PIN để mở.`;
+}
+
+async function doSetup(){
+  const owner = document.getElementById('setupOwnerName').value.trim();
+  const pin = document.getElementById('setupPin').value.trim();
+  const adminPin = document.getElementById('setupAdminPin').value.trim();
+  const err = document.getElementById('setupErr');
+  if(!owner || !pin || !adminPin){ err.textContent = 'Điền đủ các trường.'; return; }
+  if(pin.length < 4){ err.textContent = 'PIN chung cần ít nhất 4 ký tự.'; return; }
+  if(pin === adminPin){ err.textContent = 'PIN quản trị phải khác PIN chung.'; return; }
+  settings = {
+    ownerName: owner, pin, adminPin, dueSoonDays: 3,
+    staffList: [owner]
+  };
+  await saveSettings();
+  loans = []; await saveLoans();
+  activityLog = []; await saveActivityLog();
+  currentUser = owner;
+  document.getElementById('setupGate').classList.add('hidden');
+  enterApp();
+}
+
+function tryUnlock(){
+  const val = document.getElementById('pinInput').value.trim();
+  const err = document.getElementById('pinErr');
+  if(val === settings.pin){
+    document.getElementById('pinGate').classList.add('hidden');
+    enterApp();
+  }else{
+    err.textContent = 'Sai mã PIN.';
+  }
+}
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Enter'){
+    if(!document.getElementById('pinGate').classList.contains('hidden')) tryUnlock();
+    if(!document.getElementById('setupGate').classList.contains('hidden')) doSetup();
+  }
+});
+
+async function enterApp(){
+  await loadLoans();
+  await loadActivityLog();
+  document.getElementById('ownerNameLabel').textContent = `Sổ của ${settings.ownerName}`;
+  populateUserSelect();
+  document.getElementById('appShell').style.display = 'flex';
+  renderAll();
+}
+
+function populateUserSelect(){
+  const sel = document.getElementById('currentUserSelect');
+  sel.innerHTML = '<option value="">— Chọn tên —</option>' +
+    settings.staffList.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+  if(currentUser && settings.staffList.includes(currentUser)) sel.value = currentUser;
+}
+function onUserChange(){
+  currentUser = document.getElementById('currentUserSelect').value || null;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function requireUser(){
+  if(!currentUser){
+    showToast('Hãy chọn tên của bạn ở góc trên trước khi thao tác.');
+    return false;
+  }
+  return true;
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function renderAll(){
+  renderLegalBanner();
+  renderDashboard();
+  renderLoansList();
+}
+
+function renderLegalBanner(){
+  const activeLoans = loans.filter(l=>!l.tatToan);
+  const hasCriminalRisk = activeLoans.some(l=>calcLaiSuatNam(l) >= 100);
+  const hasCivilExcess = activeLoans.some(l=>{const r=calcLaiSuatNam(l); return r>20 && r<100;});
+  const el = document.getElementById('legalBanner');
+  if(hasCriminalRisk){
+    el.style.display='block';
+    el.textContent = '⚠ Có khoản vay lãi suất quy năm ≥ 100% — vượt 5 lần trần Bộ luật Dân sự, rủi ro cấu thành tội cho vay lãi nặng (Điều 201 BLHS) nếu thu lợi bất chính ≥ 30 triệu đồng. Cân nhắc điều chỉnh ngay.';
+  }else if(hasCivilExcess){
+    el.style.display='block';
+    el.textContent = '⚠ Có khoản vay lãi suất quy năm vượt trần dân sự 20%/năm (Điều 468 BLDS) — phần lãi vượt trần không được pháp luật bảo hộ nếu tranh chấp ra toà.';
+  }else{
+    el.style.display='none';
+  }
+}
+
+function renderDashboard(){
+  const active = loans.filter(l=>!l.tatToan);
+  const tongDuNo = active.reduce((s,l)=>s+Number(l.tongTienGoc||0),0);
+  const tongLaiThu = loans.reduce((s,l)=>s+calcTongLaiDaThu(l),0);
+  const dueSoonDays = settings.dueSoonDays||3;
+  const sapDenHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.NHAC_NO).length;
+  const quaHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN).length;
+  const canhBaoPhapLy = active.filter(l=>calcLaiSuatNam(l)>20).length;
+
+  const cards = [
+    {label:'Tổng dư nợ gốc', value: fmtMoney(tongDuNo), cls:''},
+    {label:'Tổng lãi đã thu (mọi kỳ)', value: fmtMoney(tongLaiThu), cls:'ok'},
+    {label:'Sắp đến hạn', value: sapDenHan, cls: sapDenHan? 'warn':''},
+    {label:'Quá hạn', value: quaHan, cls: quaHan? 'danger':''},
+    {label:'Cảnh báo vượt trần lãi suất', value: canhBaoPhapLy, cls: canhBaoPhapLy? 'danger':'ok', click:'legal'}
+  ];
+  document.getElementById('dashboardCards').innerHTML = cards.map(c=>`
+    <div class="card ${c.cls} ${c.click?'clickable':''} ${c.click==='legal'&&legalFilterOnly?'active-filter':''}" ${c.click?`onclick="toggleLegalFilter()"`:''}>
+      <div class="label">${c.label}</div>
+      <div class="value">${c.value}</div>
+    </div>
+  `).join('');
+}
+
+function toggleLegalFilter(){
+  legalFilterOnly = !legalFilterOnly;
+  renderDashboard();
+  renderLoansList();
+}
+
+function getFilteredSortedLoans(){
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const statusF = document.getElementById('statusFilter').value;
+  const sortBy = document.getElementById('sortBy').value;
+  const dueSoonDays = settings.dueSoonDays||3;
+
+  let list = loans.filter(l=>{
+    const st = calcTrangThai(l, dueSoonDays);
+    if(statusF==='active'){ if(st===STATUS.TAT_TOAN) return false; }
+    else if(st !== statusF) return false;
+    if(q && !l.tenKhachHang.toLowerCase().includes(q)) return false;
+    if(legalFilterOnly && calcLaiSuatNam(l) <= 20) return false;
+    return true;
+  });
+
+  list.sort((a,b)=>{
+    if(sortBy==='principal_desc') return Number(b.tongTienGoc||0)-Number(a.tongTienGoc||0);
+    if(sortBy==='name_asc') return a.tenKhachHang.localeCompare(b.tenKhachHang,'vi');
+    if(sortBy==='rate_desc') return calcLaiSuatNam(b)-calcLaiSuatNam(a);
+    // due_asc default
+    const da = calcNgayDenHanTiep(a) || '9999-99-99';
+    const db = calcNgayDenHanTiep(b) || '9999-99-99';
+    return da.localeCompare(db);
+  });
+  return list;
+}
+
+function stampClass(status){
+  if(status===STATUS.QUA_HAN) return 'danger';
+  if(status===STATUS.NHAC_NO) return 'warn';
+  if(status===STATUS.TAT_TOAN) return 'neutral';
+  return 'ok';
+}
+
+function renderLoansList(){
+  const list = getFilteredSortedLoans();
+  const tbody = document.getElementById('ledgerBody');
+  const cardsWrap = document.getElementById('loanCardsList');
+  const empty = document.getElementById('emptyState');
+
+  if(loans.length===0){
+    tbody.innerHTML=''; cardsWrap.innerHTML='';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+
+  if(list.length===0){
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:30px;">Không có khoản vay phù hợp bộ lọc.</td></tr>`;
+    cardsWrap.innerHTML = `<div class="empty-state">Không có khoản vay phù hợp bộ lọc.</div>`;
+    return;
+  }
+
+  tbody.innerHTML = list.map(l=>{
+    const d = derive(l);
+    const flag = d.legal ? `<span class="rate-flag ${d.legal}">${d.legal==='danger'?'≥100%/năm':'>20%/năm'}</span>` : '';
+    return `
+      <tr onclick="openLoanDetail('${l.id}')">
+        <td>${escapeHtml(l.tenKhachHang)}</td>
+        <td class="num">${fmtMoney(l.tongTienGoc)}</td>
+        <td class="num">${fmtMoney(d.laiKy)}</td>
+        <td class="num">${fmtPct(d.laiSuatNam)}${flag}</td>
+        <td>${fmtDateVN(d.denHanTiep)}</td>
+        <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span></td>
+      </tr>`;
+  }).join('');
+
+  cardsWrap.innerHTML = list.map(l=>{
+    const d = derive(l);
+    return `
+      <div class="loan-card" onclick="openLoanDetail('${l.id}')">
+        <div class="row1">
+          <div class="name">${escapeHtml(l.tenKhachHang)}</div>
+          <span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>
+        </div>
+        <div class="meta"><span>Gốc: ${fmtMoney(l.tongTienGoc)}</span><span>${fmtPct(d.laiSuatNam)}/năm</span></div>
+        <div class="meta"><span>Lãi/kỳ: ${fmtMoney(d.laiKy)}</span><span>Hạn: ${fmtDateVN(d.denHanTiep)}</span></div>
+      </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   MODAL SYSTEM
+   ============================================================ */
+function openModal(html){
+  document.getElementById('modalRoot').innerHTML = `<div class="modal-overlay" onmousedown="if(event.target===this) closeModal()"><div class="modal-card">${html}</div></div>`;
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function showToast(msg){
+  const root = document.getElementById('toastRoot');
+  root.innerHTML = `<div class="toast">${escapeHtml(msg)}</div>`;
+  setTimeout(()=>{ root.innerHTML=''; }, 3200);
+}
+
+/* ---------- Add loan ---------- */
+function openLoanForm(){
+  if(!requireUser()) return;
+  openModal(`
+    <h2>Thêm khoản vay</h2>
+    <div class="modal-sub">Lãi/kỳ được tính tự động — không nhập tay để tránh sai số liệu.</div>
+    <div class="field"><label>Tên khách hàng</label><input type="text" id="f_ten"></div>
+    <div class="two-col">
+      <div class="field"><label>Tổng tiền gốc (đ)</label><input type="number" id="f_goc" oninput="previewLaiKy()"></div>
+      <div class="field"><label>Đơn giá lãi (đ/triệu/ngày)</label><input type="number" id="f_dongia" oninput="previewLaiKy()" placeholder="VD: 1500"></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="f_chuky" value="30" oninput="previewLaiKy()"></div>
+      <div class="field"><label>Ngày bắt đầu</label><input type="date" id="f_ngaybd" value="${todayStr()}"></div>
+    </div>
+    <div class="field">
+      <div class="preview-line" id="laiKyPreview">Lãi mỗi kỳ: —</div>
+      <small class="hint" id="ratePreview"></small>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Tiền lãi nợ cũ (nếu có)</label><input type="number" id="f_noCu" value="0"></div>
+      <div class="field"><label>Ghi chú</label><input type="text" id="f_ghichu"></div>
+    </div>
+    <div class="err-msg" id="loanFormErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="closeModal()">Huỷ</button>
+      <button class="btn btn-brass" onclick="submitLoanForm()">Lưu khoản vay</button>
+    </div>
+  `);
+}
+function previewLaiKy(){
+  const goc = Number(document.getElementById('f_goc').value)||0;
+  const dongia = Number(document.getElementById('f_dongia').value)||0;
+  const chuky = Number(document.getElementById('f_chuky').value)||0;
+  const laiKy = Math.round(dongia*(goc/1000000)*chuky);
+  const rate = dongia*0.0365;
+  document.getElementById('laiKyPreview').textContent = `Lãi mỗi kỳ: ${fmtMoney(laiKy)}  (≈ ${fmtPct(rate)}/năm)`;
+  const hint = document.getElementById('ratePreview');
+  if(rate>=100) hint.innerHTML = '<span style="color:var(--danger)">Vượt ngưỡng 100%/năm — rủi ro hình sự nếu thu lợi bất chính ≥30 triệu (Điều 201 BLHS).</span>';
+  else if(rate>20) hint.innerHTML = '<span style="color:var(--warning)">Vượt trần dân sự 20%/năm (Điều 468 BLDS) — phần vượt không được pháp luật bảo hộ.</span>';
+  else hint.textContent = '';
+}
+async function submitLoanForm(){
+  const ten = document.getElementById('f_ten').value.trim();
+  const goc = Number(document.getElementById('f_goc').value);
+  const dongia = Number(document.getElementById('f_dongia').value);
+  const chuky = Number(document.getElementById('f_chuky').value);
+  const ngaybd = document.getElementById('f_ngaybd').value;
+  const err = document.getElementById('loanFormErr');
+  if(!ten || !goc || !chuky || !ngaybd){ err.textContent='Điền đủ Tên, Gốc, Chu kỳ, Ngày bắt đầu.'; return; }
+  const loan = {
+    id: uid(),
+    tenKhachHang: ten,
+    tongTienGoc: goc,
+    donGiaLai: dongia||0,
+    chuKy: chuky,
+    ngayBatDau: ngaybd,
+    ngayDongLaiGanNhat: ngaybd,
+    tienLaiNoCu: Number(document.getElementById('f_noCu').value)||0,
+    ghiChu: document.getElementById('f_ghichu').value.trim(),
+    lichSuThuLai: [],
+    lyDoBienDongLai: [],
+    tatToan: false, ngayTatToan: null,
+    createdAt: new Date().toISOString(), createdBy: currentUser
+  };
+  loans.push(loan);
+  await saveLoans();
+  await logActivity('Thêm khoản vay', `${ten} — gốc ${fmtMoney(goc)}`);
+  closeModal();
+  renderAll();
+  showToast('Đã thêm khoản vay mới.');
+}
+
+/* ---------- Loan detail ---------- */
+function openLoanDetail(id){
+  const loan = loans.find(l=>l.id===id);
+  if(!loan) return;
+  const d = derive(loan);
+  const history = (loan.lichSuThuLai||[]).slice().sort((a,b)=>b.ngayThu.localeCompare(a.ngayThu));
+  const rateLog = (loan.lyDoBienDongLai||[]).slice().reverse();
+
+  openModal(`
+    <h2>${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="modal-sub">
+      <span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>
+      ${d.legal?`<span class="rate-flag ${d.legal}">${d.legal==='danger'?'≥100%/năm — rủi ro hình sự':'>20%/năm — vượt trần dân sự'}</span>`:''}
+    </div>
+    <div class="kv-grid">
+      <div class="k">Tổng tiền gốc</div><div class="v">${fmtMoney(loan.tongTienGoc)}</div>
+      <div class="k">Đơn giá lãi</div><div class="v">${(loan.donGiaLai||0).toLocaleString('vi-VN')}đ/tr/ngày</div>
+      <div class="k">Lãi suất quy năm</div><div class="v">${fmtPct(d.laiSuatNam)}</div>
+      <div class="k">Lãi mỗi kỳ</div><div class="v">${fmtMoney(d.laiKy)}</div>
+      <div class="k">Chu kỳ</div><div class="v">${loan.chuKy} ngày</div>
+      <div class="k">Ngày bắt đầu</div><div class="v">${fmtDateVN(loan.ngayBatDau)}</div>
+      <div class="k">Ngày đóng lãi gần nhất</div><div class="v">${fmtDateVN(loan.ngayDongLaiGanNhat)}</div>
+      <div class="k">Ngày đến hạn tiếp</div><div class="v">${fmtDateVN(d.denHanTiep)}</div>
+      <div class="k">Tổng số ngày vay</div><div class="v">${d.tongSoNgayVay}</div>
+      <div class="k">Số kỳ đã thu</div><div class="v">${d.soKyDaThu}</div>
+      <div class="k">Tổng lãi đã thu</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
+      ${Object.entries(d.laiTheoNam).map(([y,v])=>`<div class="k">Lãi đã thu ${y}</div><div class="v">${fmtMoney(v)}</div>`).join('')}
+      ${loan.tienLaiNoCu?`<div class="k">Tiền lãi nợ cũ</div><div class="v">${fmtMoney(loan.tienLaiNoCu)}</div>`:''}
+    </div>
+    ${loan.ghiChu?`<div class="small-note">Ghi chú: ${escapeHtml(loan.ghiChu)}</div>`:''}
+
+    <div class="detail-section">
+      <h3>Lịch sử thu lãi (${history.length})</h3>
+      ${history.length? history.map(h=>`
+        <div class="history-row">
+          <span>${fmtDateVN(h.ngayThu)} · ${h.soKy} kỳ · ${escapeHtml(h.nguoiThucHien||'—')}${h.ghiChu?` · <span class="small-note">${escapeHtml(h.ghiChu)}</span>`:''}</span>
+          <span class="amt">${fmtMoney(h.soTien)}</span>
+        </div>`).join('') : '<div class="small-note">Chưa ghi nhận lần thu lãi nào.</div>'}
+    </div>
+
+    ${rateLog.length?`
+    <div class="detail-section">
+      <h3>Lịch sử điều chỉnh lãi suất</h3>
+      ${rateLog.map(r=>`
+        <div class="history-row">
+          <span>${fmtDateVN(r.ngay)} · ${escapeHtml(r.nguoiThucHien||'—')} · ${escapeHtml(r.lyDo||'')}</span>
+          <span class="mono">${r.laiSuatCu}→${r.laiSuatMoi} đ/tr/ng</span>
+        </div>`).join('')}
+    </div>`:''}
+
+    <div class="modal-close-row" style="flex-wrap:wrap;">
+      ${!loan.tatToan?`<button class="btn btn-ghost" onclick="openRateChangeForm('${loan.id}')">Đổi lãi suất</button>`:''}
+      ${!loan.tatToan?`<button class="btn btn-outline" onclick="openEditLoanForm('${loan.id}')">Sửa thông tin</button>`:''}
+      ${!loan.tatToan?`<button class="btn btn-danger" onclick="askSettleLoan('${loan.id}')">Tất toán</button>`:''}
+      <button class="btn btn-ghost" onclick="askDeleteLoan('${loan.id}')">Xoá</button>
+      ${!loan.tatToan?`<button class="btn btn-primary" onclick="openCollectForm('${loan.id}')">Ghi nhận thu lãi</button>`:''}
+    </div>
+  `);
+}
+
+/* ---------- Collect interest ---------- */
+function openCollectForm(id){
+  if(!requireUser()) return;
+  const loan = loans.find(l=>l.id===id);
+  const laiKy = calcLaiKy(loan);
+  openModal(`
+    <h2>Ghi nhận thu lãi — ${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="modal-sub">Người thực hiện: <b>${escapeHtml(currentUser)}</b></div>
+    <div class="two-col">
+      <div class="field"><label>Ngày thu</label><input type="date" id="c_ngay" value="${todayStr()}"></div>
+      <div class="field"><label>Số kỳ</label><input type="number" id="c_soky" value="1" min="1" oninput="previewCollectAmt(${laiKy})"></div>
+    </div>
+    <div class="field"><label>Số tiền thu (tự tính, có thể sửa)</label><input type="number" id="c_sotien" value="${laiKy}"></div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="c_ghichu"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Quay lại</button>
+      <button class="btn btn-primary" onclick="submitCollect('${id}')">Lưu</button>
+    </div>
+  `);
+}
+function previewCollectAmt(laiKy){
+  const soky = Number(document.getElementById('c_soky').value)||1;
+  document.getElementById('c_sotien').value = laiKy*soky;
+}
+async function submitCollect(id){
+  const loan = loans.find(l=>l.id===id);
+  const ngay = document.getElementById('c_ngay').value;
+  const soky = Number(document.getElementById('c_soky').value)||1;
+  const sotien = Number(document.getElementById('c_sotien').value)||0;
+  const ghichu = document.getElementById('c_ghichu').value.trim();
+  if(!ngay || !sotien){ showToast('Điền đủ ngày thu và số tiền.'); return; }
+  loan.lichSuThuLai.push({ id:uid(), ngayThu:ngay, soKy:soky, soTien:sotien, ghiChu:ghichu, nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  loan.ngayDongLaiGanNhat = ngay;
+  await saveLoans();
+  await logActivity('Ghi nhận thu lãi', `${loan.tenKhachHang} — ${fmtMoney(sotien)} (${soky} kỳ)`);
+  closeModal(); renderAll();
+  showToast('Đã ghi nhận thu lãi.');
+}
+
+/* ---------- Edit loan (admin-gated for sensitive fields) ---------- */
+function openEditLoanForm(id){
+  const loan = loans.find(l=>l.id===id);
+  openModal(`
+    <h2>Sửa thông tin — ${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="modal-sub">Sửa Gốc / Đơn giá lãi / Chu kỳ / Ngày bắt đầu cần mã PIN Quản trị.</div>
+    <div class="field"><label>Tên khách hàng</label><input type="text" id="e_ten" value="${escapeHtml(loan.tenKhachHang)}"></div>
+    <div class="two-col">
+      <div class="field"><label>Tổng tiền gốc</label><input type="number" id="e_goc" value="${loan.tongTienGoc}"></div>
+      <div class="field"><label>Đơn giá lãi (đ/tr/ngày)</label><input type="number" id="e_dongia" value="${loan.donGiaLai}"></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="e_chuky" value="${loan.chuKy}"></div>
+      <div class="field"><label>Ngày bắt đầu</label><input type="date" id="e_ngaybd" value="${loan.ngayBatDau}"></div>
+    </div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="e_ghichu" value="${escapeHtml(loan.ghiChu||'')}"></div>
+    <div class="field"><label>Mã PIN Quản trị (chỉ cần nếu đổi Gốc/Đơn giá/Chu kỳ/Ngày bắt đầu)</label><input type="password" id="e_adminpin"></div>
+    <div class="err-msg" id="editErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-brass" onclick="submitEditLoan('${id}')">Lưu thay đổi</button>
+    </div>
+  `);
+}
+async function submitEditLoan(id){
+  const loan = loans.find(l=>l.id===id);
+  const newTen = document.getElementById('e_ten').value.trim();
+  const newGoc = Number(document.getElementById('e_goc').value);
+  const newDongia = Number(document.getElementById('e_dongia').value);
+  const newChuky = Number(document.getElementById('e_chuky').value);
+  const newNgaybd = document.getElementById('e_ngaybd').value;
+  const newGhichu = document.getElementById('e_ghichu').value.trim();
+  const pin = document.getElementById('e_adminpin').value;
+  const err = document.getElementById('editErr');
+
+  const sensitiveChanged = (newGoc!==loan.tongTienGoc || newDongia!==loan.donGiaLai || newChuky!==loan.chuKy || newNgaybd!==loan.ngayBatDau);
+  if(sensitiveChanged && pin !== settings.adminPin){
+    err.textContent = 'Sai mã PIN Quản trị — không thể đổi Gốc/Đơn giá/Chu kỳ/Ngày bắt đầu.';
+    return;
+  }
+  if(!requireUser()) return;
+
+  if(newDongia !== loan.donGiaLai){
+    loan.lyDoBienDongLai = loan.lyDoBienDongLai||[];
+    loan.lyDoBienDongLai.push({ngay:todayStr(), laiSuatCu:loan.donGiaLai, laiSuatMoi:newDongia, lyDo:'Sửa qua form chỉnh sửa', nguoiThucHien:currentUser});
+  }
+  loan.tenKhachHang = newTen;
+  loan.tongTienGoc = newGoc;
+  loan.donGiaLai = newDongia;
+  loan.chuKy = newChuky;
+  loan.ngayBatDau = newNgaybd;
+  loan.ghiChu = newGhichu;
+  await saveLoans();
+  await logActivity('Sửa khoản vay', newTen);
+  closeModal(); renderAll();
+  showToast('Đã lưu thay đổi.');
+}
+
+/* ---------- Rate change (quick) ---------- */
+function openRateChangeForm(id){
+  const loan = loans.find(l=>l.id===id);
+  openModal(`
+    <h2>Đổi lãi suất — ${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="field"><label>Đơn giá lãi hiện tại</label><input type="text" value="${loan.donGiaLai} đ/tr/ngày" disabled></div>
+    <div class="field"><label>Đơn giá lãi mới (đ/tr/ngày)</label><input type="number" id="r_new"></div>
+    <div class="field"><label>Lý do biến động lãi</label><input type="text" id="r_lydo" placeholder="VD: khách xin giảm, thoả thuận lại..."></div>
+    <div class="field"><label>Mã PIN Quản trị</label><input type="password" id="r_pin"></div>
+    <div class="err-msg" id="rateErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-brass" onclick="submitRateChange('${id}')">Lưu</button>
+    </div>
+  `);
+}
+async function submitRateChange(id){
+  const loan = loans.find(l=>l.id===id);
+  const newRate = Number(document.getElementById('r_new').value);
+  const lydo = document.getElementById('r_lydo').value.trim();
+  const pin = document.getElementById('r_pin').value;
+  const err = document.getElementById('rateErr');
+  if(pin !== settings.adminPin){ err.textContent='Sai mã PIN Quản trị.'; return; }
+  if(!newRate){ err.textContent='Nhập đơn giá lãi mới.'; return; }
+  if(!requireUser()) return;
+  loan.lyDoBienDongLai = loan.lyDoBienDongLai||[];
+  loan.lyDoBienDongLai.push({ngay:todayStr(), laiSuatCu:loan.donGiaLai, laiSuatMoi:newRate, lyDo:lydo, nguoiThucHien:currentUser});
+  loan.donGiaLai = newRate;
+  await saveLoans();
+  await logActivity('Đổi lãi suất', `${loan.tenKhachHang} → ${newRate}đ/tr/ngày (${lydo})`);
+  closeModal(); renderAll();
+  showToast('Đã cập nhật lãi suất.');
+}
+
+/* ---------- Settle / Delete ---------- */
+function askSettleLoan(id){
+  const loan = loans.find(l=>l.id===id);
+  openModal(`
+    <h2>Tất toán khoản vay</h2>
+    <div class="modal-sub">${escapeHtml(loan.tenKhachHang)} — xác nhận khách đã trả hết gốc + lãi.</div>
+    <div class="field"><label>Ngày tất toán</label><input type="date" id="s_ngay" value="${todayStr()}"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-danger" onclick="submitSettle('${id}')">Xác nhận tất toán</button>
+    </div>
+  `);
+}
+async function submitSettle(id){
+  if(!requireUser()) return;
+  const loan = loans.find(l=>l.id===id);
+  loan.tatToan = true;
+  loan.ngayTatToan = document.getElementById('s_ngay').value || todayStr();
+  await saveLoans();
+  await logActivity('Tất toán khoản vay', loan.tenKhachHang);
+  closeModal(); renderAll();
+  showToast('Đã tất toán khoản vay.');
+}
+function askDeleteLoan(id){
+  const loan = loans.find(l=>l.id===id);
+  openModal(`
+    <h2>Xoá khoản vay?</h2>
+    <div class="modal-sub">${escapeHtml(loan.tenKhachHang)} — thao tác không thể hoàn tác. Cần mã PIN Quản trị.</div>
+    <div class="field"><label>Mã PIN Quản trị</label><input type="password" id="d_pin"></div>
+    <div class="err-msg" id="delErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-danger" onclick="submitDelete('${id}')">Xoá vĩnh viễn</button>
+    </div>
+  `);
+}
+async function submitDelete(id){
+  const pin = document.getElementById('d_pin').value;
+  if(pin !== settings.adminPin){ document.getElementById('delErr').textContent='Sai mã PIN Quản trị.'; return; }
+  if(!requireUser()) return;
+  const loan = loans.find(l=>l.id===id);
+  loans = loans.filter(l=>l.id!==id);
+  await saveLoans();
+  await logActivity('Xoá khoản vay', loan.tenKhachHang);
+  closeModal(); renderAll();
+  showToast('Đã xoá khoản vay.');
+}
+
+/* ---------- Activity log panel ---------- */
+function openActivityLog(){
+  openModal(`
+    <h2>Nhật ký hoạt động</h2>
+    <div class="modal-sub">${activityLog.length} hoạt động gần nhất</div>
+    <div style="max-height:60vh;overflow-y:auto;">
+      ${activityLog.length? activityLog.map(a=>`
+        <div class="log-row">
+          <div><span class="who">${escapeHtml(a.user)}</span> — ${escapeHtml(a.action)}<div class="small-note">${escapeHtml(a.detail||'')}</div></div>
+          <div class="when">${new Date(a.time).toLocaleString('vi-VN')}</div>
+        </div>`).join('') : '<div class="small-note">Chưa có hoạt động nào.</div>'}
+    </div>
+    <div class="modal-close-row"><button class="btn btn-outline" onclick="closeModal()">Đóng</button></div>
+  `);
+}
+
+/* ---------- Settings panel ---------- */
+function openSettings(){
+  openModal(`
+    <h2>Cài đặt</h2>
+    <div class="field"><label>Tên chủ sổ</label><input type="text" id="st_owner" value="${escapeHtml(settings.ownerName)}"></div>
+    <div class="field"><label>Ngưỡng "sắp đến hạn" (số ngày)</label><input type="number" id="st_duesoon" value="${settings.dueSoonDays}"></div>
+    <div class="field">
+      <label>Danh sách người dùng</label>
+      <div id="staffChips">${settings.staffList.map(n=>`<span class="staff-chip">${escapeHtml(n)} <button onclick="removeStaff('${escapeHtml(n)}')">×</button></span>`).join('')}</div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <input type="text" id="st_newstaff" placeholder="Tên nhân viên mới" style="flex:1;padding:8px;border:1px solid var(--line);border-radius:6px;">
+        <button class="btn btn-outline" onclick="addStaff()">Thêm</button>
+      </div>
+    </div>
+    <div class="detail-section">
+      <h3>Đổi mã PIN</h3>
+      <div class="two-col">
+        <div class="field"><label>PIN chung mới</label><input type="password" id="st_pin"></div>
+        <div class="field"><label>PIN Quản trị mới</label><input type="password" id="st_adminpin"></div>
+      </div>
+      <div class="field"><label>Xác nhận bằng PIN Quản trị hiện tại</label><input type="password" id="st_confirmpin"></div>
+      <div class="err-msg" id="settingsErr"></div>
+    </div>
+    <div class="detail-section">
+      <h3>Sao lưu &amp; khôi phục</h3>
+      <div class="modal-close-row" style="justify-content:flex-start;margin-top:0;">
+        <button class="btn btn-outline" onclick="exportBackup()">Tải file sao lưu (.json)</button>
+        <label class="btn btn-outline" style="display:inline-block;">
+          Khôi phục từ file
+          <input type="file" accept=".json" style="display:none;" onchange="importBackup(event)">
+        </label>
+      </div>
+    </div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="closeModal()">Đóng</button>
+      <button class="btn btn-brass" onclick="saveSettingsForm()">Lưu cài đặt</button>
+    </div>
+  `);
+}
+async function addStaff(){
+  const name = document.getElementById('st_newstaff').value.trim();
+  if(!name) return;
+  if(!settings.staffList.includes(name)) settings.staffList.push(name);
+  await saveSettings();
+  populateUserSelect();
+  openSettings();
+}
+async function removeStaff(name){
+  settings.staffList = settings.staffList.filter(n=>n!==name);
+  await saveSettings();
+  populateUserSelect();
+  openSettings();
+}
+async function saveSettingsForm(){
+  const owner = document.getElementById('st_owner').value.trim();
+  const dueSoon = Number(document.getElementById('st_duesoon').value)||3;
+  const newPin = document.getElementById('st_pin').value.trim();
+  const newAdminPin = document.getElementById('st_adminpin').value.trim();
+  const confirmPin = document.getElementById('st_confirmpin').value.trim();
+  const err = document.getElementById('settingsErr');
+
+  if((newPin || newAdminPin) && confirmPin !== settings.adminPin){
+    err.textContent = 'Cần đúng PIN Quản trị hiện tại để đổi mã PIN.'; return;
+  }
+  settings.ownerName = owner || settings.ownerName;
+  settings.dueSoonDays = dueSoon;
+  if(newPin) settings.pin = newPin;
+  if(newAdminPin) settings.adminPin = newAdminPin;
+  await saveSettings();
+  document.getElementById('ownerNameLabel').textContent = `Sổ của ${settings.ownerName}`;
+  await logActivity('Cập nhật cài đặt', '');
+  closeModal(); renderAll();
+  showToast('Đã lưu cài đặt.');
+}
+function exportBackup(){
+  const data = { settings, loans, activityLog, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `soquy-backup-${todayStr()}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function importBackup(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async ()=>{
+    try{
+      const data = JSON.parse(reader.result);
+      if(!data.settings || !Array.isArray(data.loans)) throw new Error('bad format');
+      settings = data.settings; loans = data.loans; activityLog = data.activityLog||[];
+      await saveSettings(); await saveLoans(); await saveActivityLog();
+      populateUserSelect();
+      closeModal(); renderAll();
+      showToast('Đã khôi phục dữ liệu từ file sao lưu.');
+    }catch(e){
+      showToast('File sao lưu không hợp lệ.');
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------- boot ---------- */
+init();
+</script>
+</body>
+</html>
