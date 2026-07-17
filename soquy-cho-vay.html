@@ -814,12 +814,29 @@ async function init(){
     return;
   }
   const initialized = await checkAppInitialized();
-  document.getElementById('loadingGate').classList.add('hidden');
   if(!initialized){
+    document.getElementById('loadingGate').classList.add('hidden');
     document.getElementById('setupGate').classList.remove('hidden');
     return;
   }
-  document.getElementById('pinGate').classList.remove('hidden');
+  document.getElementById('loadingSub').textContent = 'Đang khôi phục phiên đăng nhập...';
+  /* Chờ Firebase Auth khôi phục phiên đăng nhập đã lưu trong trình duyệt (nếu có) trước khi
+     quyết định hiện màn đăng nhập. Nhờ vậy F5 / tải lại trang chỉ làm mới dữ liệu, không bị
+     thoát ra ngoài — chỉ thoát thật sự khi bấm nút "Đăng xuất". */
+  const unsubscribe = fbAuthMod.onAuthStateChanged(fsAuth, async (user)=>{
+    unsubscribe();
+    document.getElementById('loadingGate').classList.add('hidden');
+    if(user){
+      try{
+        await afterAuthSuccess(user);
+      }catch(e){
+        console.error(e);
+        document.getElementById('pinGate').classList.remove('hidden');
+      }
+    }else{
+      document.getElementById('pinGate').classList.remove('hidden');
+    }
+  });
 }
 
 async function doSetup(){
