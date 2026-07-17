@@ -141,6 +141,20 @@
   .tab-btn{background:transparent;border:none;padding:10px 16px;font-size:0.88rem;font-weight:600;color:var(--ink-soft);border-bottom:2px solid transparent;}
   .tab-btn.active{color:var(--ink);border-bottom-color:var(--brass);}
 
+  .ai-section{margin-bottom:24px;}
+  .ai-section h3{font-family:var(--font-display);font-size:1.05rem;margin:0 0 12px;color:var(--ink);}
+  .insight-list{display:flex;flex-direction:column;gap:10px;}
+  .insight-item{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:8px;border:1px solid var(--line);background:var(--surface);font-size:0.88rem;line-height:1.5;}
+  .insight-item .dot{font-size:1rem;}
+  .insight-item.danger{border-color:var(--danger);background:var(--danger-wash);}
+  .insight-item.warn{border-color:var(--warning);background:var(--warning-wash);}
+  .insight-item.ok{border-color:var(--success);background:var(--success-wash);}
+  .insight-item.info{border-color:var(--line);background:var(--paper);}
+  .forecast-row{display:grid;grid-template-columns:96px 1fr 120px;align-items:center;gap:12px;margin-bottom:10px;font-size:0.85rem;}
+  .forecast-track{background:var(--paper);border:1px solid var(--line);border-radius:6px;height:20px;overflow:hidden;}
+  .forecast-fill{background:var(--brass);height:100%;}
+  @media (max-width:520px){.forecast-row{grid-template-columns:70px 1fr;}.forecast-row .fc-amt{grid-column:1/-1;text-align:left !important;}}
+
   table.ledger{width:100%;border-collapse:collapse;background:var(--surface);border-radius:var(--radius);overflow:hidden;}
   table.ledger thead tr{border-bottom:2px solid var(--ink);}
   table.ledger th{text-align:left;padding:11px 12px;font-size:0.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft);}
@@ -328,44 +342,56 @@
 
     <div class="cards" id="dashboardCards"></div>
 
-    <div class="toolbar">
-      <div class="toolbar-left">
-        <input type="text" id="searchInput" placeholder="Tìm theo tên khách..." oninput="renderLoansList()">
-        <select id="statusFilter" onchange="renderLoansList()">
-          <option value="active">Đang hoạt động (tất cả)</option>
-          <option value="CHUA_DEN_HAN">Chưa đến hạn</option>
-          <option value="NHAC_NO">Nhắc nợ ngay</option>
-          <option value="QUA_HAN">Quá hạn</option>
-          <option value="TAT_TOAN">Đã tất toán</option>
-        </select>
-        <select id="sortBy" onchange="renderLoansList()">
-          <option value="due_asc">Sắp đến hạn trước</option>
-          <option value="principal_desc">Gốc: cao → thấp</option>
-          <option value="name_asc">Tên: A → Z</option>
-          <option value="rate_desc">Lãi suất/năm: cao → thấp</option>
-        </select>
-      </div>
-      <button class="btn btn-brass" id="addLoanBtn" onclick="openLoanForm()">+ Thêm khoản vay</button>
+    <div class="tabs">
+      <button class="tab-btn active" id="mtab-loans" onclick="switchMainTab('loans')">Danh sách khoản vay</button>
+      <button class="tab-btn" id="mtab-ai" onclick="switchMainTab('ai')">Phân tích AI</button>
+      <button class="tab-btn" id="mtab-results" onclick="switchMainTab('results')">Kết quả</button>
     </div>
 
-    <table class="ledger">
-      <thead>
-        <tr>
-          <th>Khách hàng</th>
-          <th style="text-align:right;">Gốc</th>
-          <th style="text-align:right;">Lãi / kỳ</th>
-          <th style="text-align:right;">%/năm</th>
-          <th>Đến hạn tiếp</th>
-          <th>Trạng thái</th>
-        </tr>
-      </thead>
-      <tbody id="ledgerBody"></tbody>
-    </table>
-    <div class="loan-cards" id="loanCardsList"></div>
-    <div id="emptyState" class="empty-state hidden">
-      <div class="big">Chưa có khoản vay nào</div>
-      <div>Bấm "+ Thêm khoản vay" ở trên để bắt đầu ghi sổ.</div>
+    <div id="tabPanel-loans" class="tab-panel">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <input type="text" id="searchInput" placeholder="Tìm theo tên khách..." oninput="renderLoansList()">
+          <select id="statusFilter" onchange="renderLoansList()">
+            <option value="active">Đang hoạt động (tất cả)</option>
+            <option value="CHUA_DEN_HAN">Chưa đến hạn</option>
+            <option value="NHAC_NO">Nhắc nợ ngay</option>
+            <option value="QUA_HAN">Quá hạn</option>
+            <option value="TAT_TOAN">Đã tất toán</option>
+          </select>
+          <select id="sortBy" onchange="renderLoansList()">
+            <option value="due_asc">Sắp đến hạn trước</option>
+            <option value="principal_desc">Gốc: cao → thấp</option>
+            <option value="name_asc">Tên: A → Z</option>
+            <option value="rate_desc">Lãi suất/năm: cao → thấp</option>
+          </select>
+        </div>
+        <button class="btn btn-brass" id="addLoanBtn" onclick="openLoanForm()">+ Thêm khoản vay</button>
+      </div>
+
+      <table class="ledger">
+        <thead>
+          <tr>
+            <th>Khách hàng</th>
+            <th style="text-align:right;">Gốc</th>
+            <th style="text-align:right;">Lãi / kỳ</th>
+            <th style="text-align:right;">%/năm</th>
+            <th>Đóng lãi gần nhất</th>
+            <th>Đến hạn tiếp</th>
+            <th>Trạng thái</th>
+          </tr>
+        </thead>
+        <tbody id="ledgerBody"></tbody>
+      </table>
+      <div class="loan-cards" id="loanCardsList"></div>
+      <div id="emptyState" class="empty-state hidden">
+        <div class="big">Chưa có khoản vay nào</div>
+        <div>Bấm "+ Thêm khoản vay" ở trên để bắt đầu ghi sổ.</div>
+      </div>
     </div>
+
+    <div id="tabPanel-ai" class="tab-panel hidden"></div>
+    <div id="tabPanel-results" class="tab-panel hidden"></div>
   </main>
 </div>
 
@@ -942,6 +968,8 @@ function renderAll(){
   renderLegalBanner();
   renderDashboard();
   renderLoansList();
+  renderAITab();
+  renderResultsTab();
 }
 
 function applyRoleUI(){
@@ -1046,7 +1074,7 @@ function renderLoansList(){
   empty.classList.add('hidden');
 
   if(list.length===0){
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--ink-soft);padding:30px;">Không có khoản vay phù hợp bộ lọc.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:30px;">Không có khoản vay phù hợp bộ lọc.</td></tr>`;
     cardsWrap.innerHTML = `<div class="empty-state">Không có khoản vay phù hợp bộ lọc.</div>`;
     return;
   }
@@ -1060,6 +1088,7 @@ function renderLoansList(){
         <td class="num">${fmtMoney(l.tongTienGoc)}</td>
         <td class="num">${fmtMoney(d.laiKy)}</td>
         <td class="num">${fmtPct(d.laiSuatNam)}${flag}</td>
+        <td>${fmtDateVN(l.ngayDongLaiGanNhat)}</td>
         <td>${fmtDateVN(d.denHanTiep)}</td>
         <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span></td>
       </tr>`;
@@ -1075,8 +1104,237 @@ function renderLoansList(){
         </div>
         <div class="meta"><span>Gốc: ${fmtMoney(l.tongTienGoc)}</span><span>${fmtPct(d.laiSuatNam)}/năm</span></div>
         <div class="meta"><span>Lãi/kỳ: ${fmtMoney(d.laiKy)}</span><span>Hạn: ${fmtDateVN(d.denHanTiep)}</span></div>
+        <div class="meta"><span>Đóng lãi gần nhất: ${fmtDateVN(l.ngayDongLaiGanNhat)}</span></div>
       </div>`;
   }).join('');
+}
+
+/* ============================================================
+   TAB ĐIỀU HƯỚNG CHÍNH — Danh sách / Phân tích AI / Kết quả
+   ============================================================ */
+function switchMainTab(name){
+  ['loans','ai','results'].forEach(n=>{
+    const panel = document.getElementById('tabPanel-'+n);
+    const btn = document.getElementById('mtab-'+n);
+    if(panel) panel.classList.toggle('hidden', n!==name);
+    if(btn) btn.classList.toggle('active', n===name);
+  });
+  if(name==='ai') renderAITab();
+  if(name==='results') renderResultsTab();
+}
+
+/* ---------- Phân tích AI: hiện tại & tương lai ---------- */
+function computePortfolioStats(){
+  const active = loans.filter(l=>!l.tatToan);
+  const dueSoonDays = settings.dueSoonDays||3;
+  const cash = calcCashSummary();
+  const tongDuNo = active.reduce((s,l)=>s+Number(l.tongTienGoc||0),0);
+  const tongVonRong = cash.tongNapVon - cash.tongRutVon;
+  const tyLeSuDungVon = tongVonRong>0 ? (tongDuNo/tongVonRong*100) : 0;
+
+  const rateWeightedSum = active.reduce((s,l)=>s+calcLaiSuatNam(l)*Number(l.tongTienGoc||0),0);
+  const laiSuatBinhQuan = tongDuNo>0 ? rateWeightedSum/tongDuNo : 0;
+
+  const uocThuNhapThang = active.reduce((s,l)=>{
+    if(!l.chuKy) return s;
+    return s + (calcLaiKy(l)/l.chuKy)*30;
+  },0);
+
+  const quaHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN);
+  const sapDenHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.NHAC_NO);
+  const vuotTranPhapLy = active.filter(l=>calcLaiSuatNam(l)>20);
+
+  let topBorrower = null;
+  active.forEach(l=>{
+    if(!topBorrower || Number(l.tongTienGoc||0)>Number(topBorrower.tongTienGoc||0)) topBorrower = l;
+  });
+  const topBorrowerShare = (topBorrower && tongDuNo>0) ? Number(topBorrower.tongTienGoc||0)/tongDuNo*100 : 0;
+
+  return { active, cash, tongDuNo, tongVonRong, tyLeSuDungVon, laiSuatBinhQuan, uocThuNhapThang,
+    quaHan, sapDenHan, vuotTranPhapLy, topBorrower, topBorrowerShare, dueSoonDays };
+}
+
+function computeForecastBuckets(active){
+  const buckets = [
+    {label:'7 ngày tới', days:7, amount:0},
+    {label:'30 ngày tới', days:30, amount:0},
+    {label:'60 ngày tới', days:60, amount:0},
+    {label:'90 ngày tới', days:90, amount:0}
+  ];
+  active.forEach(l=>{
+    const denHan = calcNgayDenHanTiep(l);
+    if(!denHan) return;
+    const d = daysBetween(todayStr(), denHan);
+    if(d<0) return;
+    buckets.forEach(b=>{ if(d<=b.days) b.amount += calcLaiKy(l); });
+  });
+  return buckets;
+}
+
+function generateAIInsights(stats){
+  const list = [];
+  if(stats.cash.soDu < 0){
+    list.push({level:'danger', text:`Số dư quỹ đang âm (${fmtMoney(stats.cash.soDu)}) — cần nạp thêm vốn hoặc thu hồi gấp để đảm bảo thanh khoản.`});
+  }
+  if(stats.quaHan.length>0){
+    const tongQuaHan = stats.quaHan.reduce((s,l)=>s+Number(l.tongTienGoc||0),0);
+    list.push({level:'danger', text:`${stats.quaHan.length} khoản đang quá hạn, tổng dư nợ gốc ${fmtMoney(tongQuaHan)} — cần đôn đốc thu hồi ngay.`});
+  }
+  if(stats.vuotTranPhapLy.length>0){
+    list.push({level:'warn', text:`${stats.vuotTranPhapLy.length} khoản đang vượt trần lãi suất dân sự 20%/năm (Điều 468 BLDS) — rà soát điều chỉnh để giảm rủi ro pháp lý.`});
+  }
+  if(stats.sapDenHan.length>0){
+    list.push({level:'warn', text:`${stats.sapDenHan.length} khoản sắp đến hạn trong vòng ${stats.dueSoonDays} ngày — chủ động nhắc khách trước hạn.`});
+  }
+  if(stats.tyLeSuDungVon>90){
+    list.push({level:'warn', text:`Tỷ lệ sử dụng vốn ${fmtPct(stats.tyLeSuDungVon)} — vốn gần như đã cho vay hết, quỹ dự phòng thấp, cân nhắc trước khi giải ngân thêm.`});
+  }else if(stats.tongVonRong>0 && stats.tyLeSuDungVon<40){
+    list.push({level:'info', text:`Tỷ lệ sử dụng vốn chỉ ${fmtPct(stats.tyLeSuDungVon)} — còn nhiều vốn nhàn rỗi chưa sinh lời, có thể xem xét giải ngân thêm.`});
+  }
+  if(stats.topBorrower && stats.topBorrowerShare>40){
+    list.push({level:'warn', text:`Khách hàng ${escapeHtml(stats.topBorrower.tenKhachHang)} chiếm ${fmtPct(stats.topBorrowerShare)} tổng dư nợ — rủi ro tập trung vào 1 khách hàng, nên đa dạng hoá danh mục.`});
+  }
+  if(list.length===0){
+    list.push({level:'ok', text:'Danh mục hiện tại lành mạnh — không có khoản quá hạn, không vượt trần lãi suất, thanh khoản ổn định.'});
+  }
+  return list;
+}
+
+function renderAITab(){
+  const wrap = document.getElementById('tabPanel-ai');
+  if(!wrap) return;
+  if(!loans || loans.length===0){
+    wrap.innerHTML = '<div class="empty-state"><div class="big">Chưa có dữ liệu để phân tích</div><div>Thêm khoản vay để xem phân tích AI.</div></div>';
+    return;
+  }
+  const stats = computePortfolioStats();
+  const buckets = computeForecastBuckets(stats.active);
+  const maxBucket = Math.max(1, ...buckets.map(b=>b.amount));
+  const insights = generateAIInsights(stats);
+
+  wrap.innerHTML = `
+    <div class="ai-section">
+      <h3>Tổng quan hiện tại</h3>
+      <div class="kv-grid">
+        <div class="k">Số khoản đang hoạt động</div><div class="v">${fmtInt(stats.active.length)}</div>
+        <div class="k">Tổng dư nợ gốc</div><div class="v">${fmtMoney(stats.tongDuNo)}</div>
+        <div class="k">Lãi suất bình quân (quy năm, trọng số theo gốc)</div><div class="v">${fmtPct(stats.laiSuatBinhQuan)}</div>
+        <div class="k">Ước tính thu nhập lãi / tháng</div><div class="v">${fmtMoney(stats.uocThuNhapThang)}</div>
+        <div class="k">Tỷ lệ sử dụng vốn</div><div class="v">${fmtPct(stats.tyLeSuDungVon)}</div>
+        <div class="k">Số dư quỹ hiện tại</div><div class="v">${fmtMoney(stats.cash.soDu)}</div>
+      </div>
+    </div>
+
+    <div class="ai-section">
+      <h3>Dự báo dòng tiền lãi thu — tương lai</h3>
+      ${buckets.map(b=>`
+        <div class="forecast-row">
+          <span>${b.label}</span>
+          <div class="forecast-track"><div class="forecast-fill" style="width:${Math.round(b.amount/maxBucket*100)}%;"></div></div>
+          <span class="mono fc-amt" style="text-align:right;">${fmtMoney(b.amount)}</span>
+        </div>`).join('')}
+      <div class="small-note">Dự báo dựa trên ngày đến hạn tiếp theo (ngày đóng lãi gần nhất + chu kỳ) của từng khoản vay đang hoạt động, chưa tính các khoản đã quá hạn.</div>
+    </div>
+
+    <div class="ai-section">
+      <h3>Nhận định &amp; khuyến nghị</h3>
+      <div class="insight-list">
+        ${insights.map(i=>`<div class="insight-item ${i.level}"><span class="dot">${i.level==='danger'?'⛔':i.level==='warn'?'⚠':i.level==='ok'?'✓':'ℹ'}</span><span>${i.text}</span></div>`).join('')}
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- Kết quả: hiệu suất tổng thể ---------- */
+function computeResultsStats(){
+  const cash = calcCashSummary();
+  const settled = loans.filter(l=>l.tatToan);
+  const active = loans.filter(l=>!l.tatToan);
+  const roi = cash.tongNapVon>0 ? (cash.tongThuLai/cash.tongNapVon*100) : 0;
+
+  const settledDetail = settled.map(l=>{
+    const soNgay = (l.ngayBatDau && l.ngayTatToan) ? Math.max(1,daysBetween(l.ngayBatDau, l.ngayTatToan)) : 0;
+    const tongLai = calcTongLaiDaThu(l);
+    const hieuSuatNam = (soNgay>0 && l.tongTienGoc>0) ? (tongLai/l.tongTienGoc)*(365/soNgay)*100 : 0;
+    return { loan:l, soNgay, tongLai, hieuSuatNam };
+  }).sort((a,b)=>(b.loan.ngayTatToan||'').localeCompare(a.loan.ngayTatToan||''));
+
+  const tongNgayVaySettled = settledDetail.reduce((s,x)=>s+x.soNgay,0);
+  const soNgayVayBinhQuan = settledDetail.length ? tongNgayVaySettled/settledDetail.length : 0;
+  const tongGocSettled = settled.reduce((s,l)=>s+Number(l.tongTienGoc||0),0);
+  const tongLaiSettled = settledDetail.reduce((s,x)=>s+x.tongLai,0);
+  const hieuSuatBinhQuanSettled = (tongGocSettled>0 && soNgayVayBinhQuan>0)
+    ? (tongLaiSettled/tongGocSettled)*(365/soNgayVayBinhQuan)*100 : 0;
+
+  return { cash, settled, active, roi, settledDetail, soNgayVayBinhQuan, hieuSuatBinhQuanSettled };
+}
+
+function renderResultsTab(){
+  const wrap = document.getElementById('tabPanel-results');
+  if(!wrap) return;
+  if(!loans || loans.length===0){
+    wrap.innerHTML = '<div class="empty-state"><div class="big">Chưa có dữ liệu kết quả</div><div>Thêm khoản vay và ghi nhận giao dịch để xem hiệu suất.</div></div>';
+    return;
+  }
+  const r = computeResultsStats();
+
+  const cashSorted = cashLedger.slice().sort((a,b)=>(a.ngay+a.time).localeCompare(b.ngay+b.time));
+  let running=0;
+  const recentCash = cashSorted.map(t=>{running+=t.amount; return Object.assign({},t,{balance:running});}).reverse().slice(0,8);
+
+  wrap.innerHTML = `
+    <div class="cards">
+      <div class="card ${r.cash.soDu<0?'danger':'ok'}"><div class="label">Số dư quỹ hiện tại</div><div class="value">${fmtMoney(r.cash.soDu)}</div></div>
+      <div class="card"><div class="label">Tổng vốn đã nạp</div><div class="value">${fmtMoney(r.cash.tongNapVon)}</div></div>
+      <div class="card"><div class="label">Tổng vốn đã rút</div><div class="value">${fmtMoney(r.cash.tongRutVon)}</div></div>
+      <div class="card ok"><div class="label">Tổng lãi đã thu (mọi kỳ)</div><div class="value">${fmtMoney(r.cash.tongThuLai)}</div></div>
+      <div class="card"><div class="label">Tổng gốc đã thu hồi</div><div class="value">${fmtMoney(r.cash.tongThuGoc)}</div></div>
+      <div class="card ok"><div class="label">Hiệu suất trên vốn đã nạp</div><div class="value">${fmtPct(r.roi)}</div></div>
+    </div>
+
+    <div class="ai-section">
+      <h3>Các khoản đã tất toán — hiệu suất thực tế</h3>
+      <div class="kv-grid" style="margin-bottom:14px;">
+        <div class="k">Số khoản đã tất toán</div><div class="v">${fmtInt(r.settled.length)}</div>
+        <div class="k">Số khoản đang hoạt động</div><div class="v">${fmtInt(r.active.length)}</div>
+        <div class="k">Thời gian vay bình quân (khoản đã tất toán)</div><div class="v">${fmtInt(Math.round(r.soNgayVayBinhQuan))} ngày</div>
+        <div class="k">Hiệu suất thực tế bình quân (quy năm)</div><div class="v">${fmtPct(r.hieuSuatBinhQuanSettled)}</div>
+      </div>
+      ${r.settledDetail.length ? `
+      <table class="ledger">
+        <thead><tr>
+          <th>Khách hàng</th><th style="text-align:right;">Gốc</th><th>Ngày bắt đầu</th><th>Ngày tất toán</th>
+          <th style="text-align:right;">Số ngày vay</th><th style="text-align:right;">Tổng lãi thu</th><th style="text-align:right;">Hiệu suất thực tế/năm</th>
+        </tr></thead>
+        <tbody>
+          ${r.settledDetail.map(x=>`
+            <tr onclick="openLoanDetail('${x.loan.id}')">
+              <td>${escapeHtml(x.loan.tenKhachHang)}</td>
+              <td class="num">${fmtMoney(x.loan.tongTienGoc)}</td>
+              <td>${fmtDateVN(x.loan.ngayBatDau)}</td>
+              <td>${fmtDateVN(x.loan.ngayTatToan)}</td>
+              <td class="num">${fmtInt(x.soNgay)}</td>
+              <td class="num">${fmtMoney(x.tongLai)}</td>
+              <td class="num">${fmtPct(x.hieuSuatNam)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>` : '<div class="small-note">Chưa có khoản vay nào được tất toán.</div>'}
+    </div>
+
+    <div class="ai-section">
+      <h3>Lịch sử dòng tiền gần đây</h3>
+      ${recentCash.length ? recentCash.map(t=>`
+        <div class="history-row">
+          <span><b>${fmtDateVN(t.ngay)}</b> · ${TX_LABEL[t.type]}${t.khachHang?` · ${escapeHtml(t.khachHang)}`:''}
+            <div class="small-note">Số dư sau giao dịch: ${fmtMoney(t.balance)}</div>
+          </span>
+          <span class="amt" style="color:${t.amount<0?'var(--danger)':'var(--success)'}">${t.amount<0?'−':'+'}${fmtMoney(Math.abs(t.amount))}</span>
+        </div>`).join('') : '<div class="small-note">Chưa có giao dịch nào.</div>'}
+      <div class="modal-close-row" style="justify-content:flex-start;margin-top:10px;">
+        <button class="btn btn-outline" onclick="openCashLedger()">Xem đầy đủ Sổ quỹ</button>
+      </div>
+    </div>
+  `;
 }
 
 /* ============================================================
