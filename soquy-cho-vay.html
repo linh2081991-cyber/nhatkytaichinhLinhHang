@@ -1256,8 +1256,9 @@ function computeResultsStats(){
   const settledDetail = settled.map(l=>{
     const soNgay = (l.ngayBatDau && l.ngayTatToan) ? Math.max(1,daysBetween(l.ngayBatDau, l.ngayTatToan)) : 0;
     const tongLai = calcTongLaiDaThu(l);
+    const soKy = (l.lichSuThuLai||[]).length;
     const hieuSuatNam = (soNgay>0 && l.tongTienGoc>0) ? (tongLai/l.tongTienGoc)*(365/soNgay)*100 : 0;
-    return { loan:l, soNgay, tongLai, hieuSuatNam };
+    return { loan:l, soNgay, tongLai, soKy, hieuSuatNam };
   }).sort((a,b)=>(b.loan.ngayTatToan||'').localeCompare(a.loan.ngayTatToan||''));
 
   const tongNgayVaySettled = settledDetail.reduce((s,x)=>s+x.soNgay,0);
@@ -1304,8 +1305,8 @@ function renderResultsTab(){
       ${r.settledDetail.length ? `
       <table class="ledger">
         <thead><tr>
-          <th>Khách hàng</th><th style="text-align:right;">Gốc</th><th>Ngày bắt đầu</th><th>Ngày tất toán</th>
-          <th style="text-align:right;">Số ngày vay</th><th style="text-align:right;">Tổng lãi thu</th><th style="text-align:right;">Hiệu suất thực tế/năm</th>
+          <th>Khách hàng</th><th style="text-align:right;">Gốc</th><th>Ngày vay</th><th>Ngày tất toán</th>
+          <th style="text-align:right;">Số ngày vay</th><th style="text-align:right;">Số kỳ đã thu</th><th style="text-align:right;">Tổng lãi thu</th><th style="text-align:right;">Hiệu suất thực tế/năm</th>
         </tr></thead>
         <tbody>
           ${r.settledDetail.map(x=>`
@@ -1315,10 +1316,22 @@ function renderResultsTab(){
               <td>${fmtDateVN(x.loan.ngayBatDau)}</td>
               <td>${fmtDateVN(x.loan.ngayTatToan)}</td>
               <td class="num">${fmtInt(x.soNgay)}</td>
+              <td class="num">${fmtInt(x.soKy)}</td>
               <td class="num">${fmtMoney(x.tongLai)}</td>
               <td class="num">${fmtPct(x.hieuSuatNam)}</td>
             </tr>`).join('')}
         </tbody>
+        <tfoot>
+          <tr style="font-weight:600;border-top:2px solid var(--ink);">
+            <td>Tổng cộng (${r.settledDetail.length} khoản)</td>
+            <td class="num">${fmtMoney(r.settledDetail.reduce((s,x)=>s+Number(x.loan.tongTienGoc||0),0))}</td>
+            <td></td><td></td>
+            <td class="num">${fmtInt(r.settledDetail.reduce((s,x)=>s+x.soNgay,0))}</td>
+            <td class="num">${fmtInt(r.settledDetail.reduce((s,x)=>s+x.soKy,0))}</td>
+            <td class="num">${fmtMoney(r.settledDetail.reduce((s,x)=>s+x.tongLai,0))}</td>
+            <td class="num">${fmtPct(r.hieuSuatBinhQuanSettled)}</td>
+          </tr>
+        </tfoot>
       </table>` : '<div class="small-note">Chưa có khoản vay nào được tất toán.</div>'}
     </div>
 
@@ -1352,9 +1365,11 @@ function showToast(msg){
 }
 
 /* ---------- Add loan ---------- */
+let fNgayDongLaiTouched = false;
 function openLoanForm(){
   if(!requireUser()) return;
   if(!requireRole('staff')) return;
+  fNgayDongLaiTouched = false;
   openModal(`
     <h2>Thêm khoản vay</h2>
     <div class="modal-sub">Lãi/kỳ được tính tự động — không nhập tay để tránh sai số liệu.</div>
@@ -1365,8 +1380,10 @@ function openLoanForm(){
     </div>
     <div class="two-col">
       <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="f_chuky" value="30" oninput="previewLaiKy()"></div>
-      <div class="field"><label>Ngày bắt đầu</label><input type="date" id="f_ngaybd" value="${todayStr()}"></div>
+      <div class="field"><label>Ngày vay</label><input type="date" id="f_ngaybd" value="${todayStr()}" onchange="onFNgayVayChange()"></div>
     </div>
+    <div class="field"><label>Ngày đóng lãi gần nhất</label><input type="date" id="f_ngaydonglai" value="${todayStr()}" oninput="onFNgayDongLaiInput()"></div>
+    <div class="small-note">Mặc định 2 ngày này giống nhau — áp dụng cho khách vay mới, cắt lãi trước. Nếu khoản vay đã có lịch sử thu lãi trước khi nhập vào sổ, sửa lại đúng ngày đóng lãi gần nhất thực tế (để tính đúng ngày đến hạn tiếp theo).</div>
     <div class="field">
       <div class="preview-line" id="laiKyPreview">Lãi mỗi kỳ: —</div>
       <small class="hint" id="ratePreview"></small>
@@ -1381,6 +1398,15 @@ function openLoanForm(){
       <button class="btn btn-brass" onclick="submitLoanForm()">Lưu khoản vay</button>
     </div>
   `);
+}
+function onFNgayVayChange(){
+  if(!fNgayDongLaiTouched){
+    const bd = document.getElementById('f_ngaybd').value;
+    document.getElementById('f_ngaydonglai').value = bd;
+  }
+}
+function onFNgayDongLaiInput(){
+  fNgayDongLaiTouched = true;
 }
 function previewLaiKy(){
   const goc = Number(document.getElementById('f_goc').value)||0;
@@ -1400,8 +1426,9 @@ async function submitLoanForm(){
   const dongia = Number(document.getElementById('f_dongia').value);
   const chuky = Number(document.getElementById('f_chuky').value);
   const ngaybd = document.getElementById('f_ngaybd').value;
+  const ngayDongLai = document.getElementById('f_ngaydonglai').value || ngaybd;
   const err = document.getElementById('loanFormErr');
-  if(!ten || !goc || !chuky || !ngaybd){ err.textContent='Điền đủ Tên, Gốc, Chu kỳ, Ngày bắt đầu.'; return; }
+  if(!ten || !goc || !chuky || !ngaybd || !ngayDongLai){ err.textContent='Điền đủ Tên, Gốc, Chu kỳ, Ngày vay, Ngày đóng lãi gần nhất.'; return; }
   const loan = {
     id: uid(),
     tenKhachHang: ten,
@@ -1409,7 +1436,7 @@ async function submitLoanForm(){
     donGiaLai: dongia||0,
     chuKy: chuky,
     ngayBatDau: ngaybd,
-    ngayDongLaiGanNhat: ngaybd,
+    ngayDongLaiGanNhat: ngayDongLai,
     tienLaiNoCu: Number(document.getElementById('f_noCu').value)||0,
     ghiChu: document.getElementById('f_ghichu').value.trim(),
     lichSuThuLai: [],
@@ -1446,7 +1473,7 @@ function openLoanDetail(id){
       <div class="k">Lãi suất quy năm</div><div class="v">${fmtPct(d.laiSuatNam)}</div>
       <div class="k">Lãi mỗi kỳ</div><div class="v">${fmtMoney(d.laiKy)}</div>
       <div class="k">Chu kỳ</div><div class="v">${fmtInt(loan.chuKy)} ngày</div>
-      <div class="k">Ngày bắt đầu</div><div class="v">${fmtDateVN(loan.ngayBatDau)}</div>
+      <div class="k">Ngày vay</div><div class="v">${fmtDateVN(loan.ngayBatDau)}</div>
       <div class="k">Ngày đóng lãi gần nhất</div><div class="v">${fmtDateVN(loan.ngayDongLaiGanNhat)}</div>
       <div class="k">Ngày đến hạn tiếp</div><div class="v">${fmtDateVN(d.denHanTiep)}</div>
       <div class="k">Tổng số ngày vay</div><div class="v">${(Number(d.tongSoNgayVay)||0).toLocaleString('vi-VN')}</div>
@@ -1533,7 +1560,7 @@ function openEditLoanForm(id){
   const loan = loans.find(l=>l.id===id);
   openModal(`
     <h2>Sửa thông tin — ${escapeHtml(loan.tenKhachHang)}</h2>
-    <div class="modal-sub">Sửa Gốc / Đơn giá lãi / Chu kỳ / Ngày bắt đầu cần mã PIN Quản trị.</div>
+    <div class="modal-sub">Sửa Gốc / Đơn giá lãi / Chu kỳ / Ngày vay / Ngày đóng lãi gần nhất cần mã PIN Quản trị.</div>
     <div class="field"><label>Tên khách hàng</label><input type="text" id="e_ten" value="${escapeHtml(loan.tenKhachHang)}"></div>
     <div class="two-col">
       <div class="field"><label>Tổng tiền gốc</label><input type="number" id="e_goc" value="${loan.tongTienGoc}"></div>
@@ -1541,10 +1568,11 @@ function openEditLoanForm(id){
     </div>
     <div class="two-col">
       <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="e_chuky" value="${loan.chuKy}"></div>
-      <div class="field"><label>Ngày bắt đầu</label><input type="date" id="e_ngaybd" value="${loan.ngayBatDau}"></div>
+      <div class="field"><label>Ngày vay</label><input type="date" id="e_ngaybd" value="${loan.ngayBatDau}"></div>
     </div>
+    <div class="field"><label>Ngày đóng lãi gần nhất</label><input type="date" id="e_ngaydonglai" value="${loan.ngayDongLaiGanNhat||loan.ngayBatDau}"></div>
     <div class="field"><label>Ghi chú</label><input type="text" id="e_ghichu" value="${escapeHtml(loan.ghiChu||'')}"></div>
-    <div class="field"><label>Mã PIN Quản trị (chỉ cần nếu đổi Gốc/Đơn giá/Chu kỳ/Ngày bắt đầu)</label><input type="password" id="e_adminpin"></div>
+    <div class="field"><label>Mã PIN Quản trị (chỉ cần nếu đổi Gốc/Đơn giá/Chu kỳ/Ngày vay/Ngày đóng lãi gần nhất)</label><input type="password" id="e_adminpin"></div>
     <div class="err-msg" id="editErr"></div>
     <div class="modal-close-row">
       <button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Huỷ</button>
@@ -1559,13 +1587,14 @@ async function submitEditLoan(id){
   const newDongia = Number(document.getElementById('e_dongia').value);
   const newChuky = Number(document.getElementById('e_chuky').value);
   const newNgaybd = document.getElementById('e_ngaybd').value;
+  const newNgayDongLai = document.getElementById('e_ngaydonglai').value;
   const newGhichu = document.getElementById('e_ghichu').value.trim();
   const pin = document.getElementById('e_adminpin').value;
   const err = document.getElementById('editErr');
 
-  const sensitiveChanged = (newGoc!==loan.tongTienGoc || newDongia!==loan.donGiaLai || newChuky!==loan.chuKy || newNgaybd!==loan.ngayBatDau);
+  const sensitiveChanged = (newGoc!==loan.tongTienGoc || newDongia!==loan.donGiaLai || newChuky!==loan.chuKy || newNgaybd!==loan.ngayBatDau || newNgayDongLai!==(loan.ngayDongLaiGanNhat||loan.ngayBatDau));
   if(sensitiveChanged && pin !== settings.adminPin){
-    err.textContent = 'Sai mã PIN Quản trị — không thể đổi Gốc/Đơn giá/Chu kỳ/Ngày bắt đầu.';
+    err.textContent = 'Sai mã PIN Quản trị — không thể đổi Gốc/Đơn giá/Chu kỳ/Ngày vay/Ngày đóng lãi gần nhất.';
     return;
   }
   if(!requireUser()) return;
@@ -1581,6 +1610,7 @@ async function submitEditLoan(id){
   loan.donGiaLai = newDongia;
   loan.chuKy = newChuky;
   loan.ngayBatDau = newNgaybd;
+  loan.ngayDongLaiGanNhat = newNgayDongLai || newNgaybd;
   loan.ghiChu = newGhichu;
   await saveLoans();
   if(gocChanged || ngayBdChanged){
@@ -1942,7 +1972,7 @@ async function exportExcelReport(){
       [{width:40}, {width:28, align:'right'}]), 'Tổng quan');
 
     /* Sheet 2: Danh sách khoản vay */
-    const loanHeaders = ['STT','Tên khách hàng','Tổng tiền gốc','Đơn giá lãi (đ/triệu/ngày)','Lãi suất quy năm','Lãi mỗi kỳ','Chu kỳ (ngày)','Ngày bắt đầu','Ngày đóng lãi gần nhất','Ngày đến hạn tiếp theo','Trạng thái','Tổng số ngày vay','Số kỳ đã thu lãi','Tổng lãi đã thu','Tiền lãi nợ cũ','Ngày tất toán','Ghi chú'];
+    const loanHeaders = ['STT','Tên khách hàng','Tổng tiền gốc','Đơn giá lãi (đ/triệu/ngày)','Lãi suất quy năm','Lãi mỗi kỳ','Chu kỳ (ngày)','Ngày vay','Ngày đóng lãi gần nhất','Ngày đến hạn tiếp theo','Trạng thái','Tổng số ngày vay','Số kỳ đã thu lãi','Tổng lãi đã thu','Tiền lãi nợ cũ','Ngày tất toán','Ghi chú'];
     const loanRows = loans.map((l,i)=>{
       const d = derive(l);
       return [
