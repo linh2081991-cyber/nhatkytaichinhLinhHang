@@ -345,7 +345,7 @@
           <option value="rate_desc">Lãi suất/năm: cao → thấp</option>
         </select>
       </div>
-      ${roleAtLeast('staff')?`<button class="btn btn-brass" onclick="openLoanForm()">+ Thêm khoản vay</button>`:''}
+      <button class="btn btn-brass" id="addLoanBtn" onclick="openLoanForm()">+ Thêm khoản vay</button>
     </div>
 
     <table class="ledger">
@@ -935,9 +935,15 @@ function requireRole(min, msg){
    RENDER
    ============================================================ */
 function renderAll(){
+  applyRoleUI();
   renderLegalBanner();
   renderDashboard();
   renderLoansList();
+}
+
+function applyRoleUI(){
+  const btn = document.getElementById('addLoanBtn');
+  if(btn) btn.style.display = roleAtLeast('staff') ? '' : 'none';
 }
 
 function renderLegalBanner(){
