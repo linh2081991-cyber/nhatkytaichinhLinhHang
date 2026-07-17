@@ -217,6 +217,15 @@
 </head>
 <body>
 
+<!-- ============ LOADING ============ -->
+<div id="loadingGate" class="gate-wrap">
+  <div class="gate-card">
+    <div class="seal lg" style="margin:0 auto;">SQ</div>
+    <div class="gate-title" id="loadingTitle">Đang kết nối...</div>
+    <div class="gate-sub" id="loadingSub">Đang tải dữ liệu từ máy chủ, vui lòng chờ trong giây lát.</div>
+  </div>
+</div>
+
 <!-- ============ FIRST RUN SETUP ============ -->
 <div id="setupGate" class="gate-wrap hidden">
   <div class="gate-card">
@@ -245,9 +254,12 @@
   <div class="gate-card">
     <div class="seal lg" style="margin:0 auto;">SQ</div>
     <div class="gate-title">Sổ Quỹ Cho Vay</div>
-    <div class="gate-sub" id="pinGateSub">Nhập mã PIN để mở sổ.</div>
+    <div class="gate-sub" id="pinGateSub">Nhập Tên chủ sổ và mã PIN để mở.</div>
     <div class="field">
-      <input type="password" id="pinInput" inputmode="numeric" placeholder="Mã PIN" autofocus>
+      <input type="text" id="loginNameInput" placeholder="Tên chủ sổ" autocomplete="off" autofocus>
+    </div>
+    <div class="field">
+      <input type="password" id="pinInput" inputmode="numeric" placeholder="Mã PIN">
     </div>
     <div class="err-msg" id="pinErr"></div>
     <button class="btn btn-primary btn-block" onclick="tryUnlock()">Mở sổ</button>
@@ -346,16 +358,50 @@ const TX_LABEL = {
 /* Chiều tiền: true = tiền vào quỹ (+), false = tiền ra khỏi quỹ (-) */
 const TX_IS_INFLOW = { NAP_VON:true, RUT_VON:false, GIAI_NGAN:false, THU_LAI:true, THU_GOC:true };
 
-/* ---------- storage helpers ---------- */
+/* ---------- Cloud Firestore: dữ liệu lưu trên máy chủ, dùng chung mọi thiết bị ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyA9BMdlRnQd7cJWSXvF_L-PS6ScJeBX6po",
+  authDomain: "nhatkytaichinhlinhhang.firebaseapp.com",
+  projectId: "nhatkytaichinhlinhhang",
+  storageBucket: "nhatkytaichinhlinhhang.firebasestorage.app",
+  messagingSenderId: "329775782404",
+  appId: "1:329775782404:web:f30a735e95f6d18e97b351"
+};
+/* Đúng tên collection/tài liệu đã tồn tại sẵn trên Firestore, để không mất dữ liệu cũ */
+const FS_COLLECTION = 'soquy';
+const FS_DOC_MAP = {
+  'settings': 'cài đặt',
+  'loans': 'các khoản vay',
+  'activity-log': 'nhật ký hoạt động',
+  'cash-ledger': 'sổ quỹ'
+};
+let fsDb=null, fsDocFn=null, fsGetDocFn=null, fsSetDocFn=null, fsReady=false;
+
+async function initFirebase(){
+  const appMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+  const fsMod  = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  const app = appMod.initializeApp(firebaseConfig);
+  fsDb = fsMod.getFirestore(app);
+  fsDocFn = fsMod.doc; fsGetDocFn = fsMod.getDoc; fsSetDocFn = fsMod.setDoc;
+  fsReady = true;
+}
+
+/* ---------- storage helpers (giữ nguyên interface cũ, phía dưới đổi sang Firestore) ---------- */
 async function storageGet(key, shared){
   try{
-    const res = await window.storage.get(key, shared);
-    return res ? res.value : null;
-  }catch(e){ return null; }
+    const ref = fsDocFn(fsDb, FS_COLLECTION, FS_DOC_MAP[key] || key);
+    const snap = await fsGetDocFn(ref);
+    if(!snap.exists()) return null;
+    const data = snap.data();
+    return (data && typeof data['giá trị'] === 'string') ? data['giá trị'] : null;
+  }catch(e){ console.error('storage get failed', key, e); return null; }
 }
 async function storageSet(key, value, shared){
-  try{ return await window.storage.set(key, value, shared); }
-  catch(e){ console.error('storage set failed', key, e); showToast('Lỗi lưu dữ liệu — thử lại.'); return null; }
+  try{
+    const ref = fsDocFn(fsDb, FS_COLLECTION, FS_DOC_MAP[key] || key);
+    await fsSetDocFn(ref, { 'giá trị': value });
+    return { key, value };
+  }catch(e){ console.error('storage set failed', key, e); showToast('Lỗi lưu dữ liệu — kiểm tra kết nối mạng.'); return null; }
 }
 
 async function loadSettings(){
@@ -556,13 +602,23 @@ async function migrateCashLedgerIfNeeded(){
    INIT
    ============================================================ */
 async function init(){
+  try{
+    await initFirebase();
+  }catch(e){
+    console.error(e);
+    document.getElementById('loadingTitle').textContent = 'Không kết nối được máy chủ';
+    document.getElementById('loadingTitle').style.color = 'var(--danger)';
+    document.getElementById('loadingSub').textContent = 'Kiểm tra mạng Internet rồi tải lại trang.';
+    return;
+  }
   await loadSettings();
+  document.getElementById('loadingGate').classList.add('hidden');
   if(!settings){
     document.getElementById('setupGate').classList.remove('hidden');
     return;
   }
   document.getElementById('pinGate').classList.remove('hidden');
-  document.getElementById('pinGateSub').textContent = `Sổ của ${settings.ownerName || 'chủ sổ'}. Nhập mã PIN để mở.`;
+  document.getElementById('pinGateSub').textContent = `Nhập Tên chủ sổ và mã PIN để mở.`;
 }
 
 async function doSetup(){
@@ -587,14 +643,18 @@ async function doSetup(){
 }
 
 function tryUnlock(){
+  const name = document.getElementById('loginNameInput').value.trim();
   const val = document.getElementById('pinInput').value.trim();
   const err = document.getElementById('pinErr');
-  if(val === settings.pin){
-    document.getElementById('pinGate').classList.add('hidden');
-    enterApp();
-  }else{
-    err.textContent = 'Sai mã PIN.';
+  if(!name || !val){ err.textContent = 'Nhập đủ Tên chủ sổ và mã PIN.'; return; }
+  if(name.toLowerCase() !== String(settings.ownerName||'').trim().toLowerCase()){
+    err.textContent = 'Tên chủ sổ không đúng.'; return;
   }
+  if(val !== settings.pin){
+    err.textContent = 'Sai mã PIN.'; return;
+  }
+  document.getElementById('pinGate').classList.add('hidden');
+  enterApp();
 }
 document.addEventListener('keydown', (e)=>{
   if(e.key === 'Enter'){
@@ -1165,13 +1225,15 @@ function openSettings(){
     </div>
     <div class="detail-section">
       <h3>Sao lưu &amp; khôi phục</h3>
-      <div class="modal-close-row" style="justify-content:flex-start;margin-top:0;">
+      <div class="modal-close-row" style="justify-content:flex-start;margin-top:0;flex-wrap:wrap;">
+        <button class="btn btn-brass" id="btnExportXlsx" onclick="exportExcelReport()">📊 Xuất báo cáo Excel (.xlsx)</button>
         <button class="btn btn-outline" onclick="exportBackup()">Tải file sao lưu (.json)</button>
         <label class="btn btn-outline" style="display:inline-block;">
           Khôi phục từ file
           <input type="file" accept=".json" style="display:none;" onchange="importBackup(event)">
         </label>
       </div>
+      <div class="small-note">File Excel dùng để xem/in — mở bằng Google Drive hoặc Excel đều tự giãn dòng, đủ mọi số liệu. File .json dùng để khôi phục lại dữ liệu vào app khi cần.</div>
     </div>
     <div class="modal-close-row">
       <button class="btn btn-ghost" onclick="closeModal()">Đóng</button>
@@ -1242,6 +1304,167 @@ function importBackup(evt){
     }
   };
   reader.readAsText(file);
+}
+
+/* ---------- Xuất báo cáo Excel (.xlsx) — nhiều trang, có định dạng để in/xem trên Google Drive ---------- */
+let _xlsxLibPromise = null;
+function loadXlsxLib(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  if(_xlsxLibPromise) return _xlsxLibPromise;
+  _xlsxLibPromise = new Promise((resolve, reject)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+    s.onload = ()=> resolve(window.XLSX);
+    s.onerror = ()=> reject(new Error('Không tải được thư viện Excel — kiểm tra mạng.'));
+    document.head.appendChild(s);
+  });
+  return _xlsxLibPromise;
+}
+
+async function exportExcelReport(){
+  const btn = document.getElementById('btnExportXlsx');
+  const oldLabel = btn ? btn.textContent : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'Đang tạo file...'; }
+  try{
+    const XLSX = await loadXlsxLib();
+
+    const BORDER_THIN = {
+      top:{style:'thin',color:{rgb:'DBDACF'}}, bottom:{style:'thin',color:{rgb:'DBDACF'}},
+      left:{style:'thin',color:{rgb:'DBDACF'}}, right:{style:'thin',color:{rgb:'DBDACF'}}
+    };
+    function styleSheet(ws, colConfigs){
+      const range = XLSX.utils.decode_range(ws['!ref']);
+      for(let R=range.s.r; R<=range.e.r; R++){
+        for(let C=range.s.c; C<=range.e.c; C++){
+          const addr = XLSX.utils.encode_cell({r:R,c:C});
+          if(!ws[addr]) ws[addr] = {t:'s', v:''};
+          const cfg = colConfigs[C] || {};
+          if(R===0){
+            ws[addr].s = {
+              font:{bold:true, color:{rgb:'FFFFFF'}, sz:11},
+              fill:{fgColor:{rgb:'16233F'}},
+              alignment:{horizontal:'center', vertical:'center', wrapText:true},
+              border: BORDER_THIN
+            };
+          }else{
+            ws[addr].s = {
+              font:{sz:10, color:{rgb:'16233F'}},
+              alignment:{horizontal: cfg.align || 'left', vertical:'top', wrapText: cfg.wrap!==false},
+              border: BORDER_THIN
+            };
+          }
+        }
+      }
+      ws['!cols'] = colConfigs.map(c=>({wch:c.width||16}));
+      ws['!rows'] = [{hpt:26}];
+      ws['!margins'] = {left:0.3, right:0.3, top:0.4, bottom:0.4, header:0.2, footer:0.2};
+    }
+    function sheetFrom(headers, rows, colConfigs){
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...(rows.length?rows:[colConfigs.map(()=>'')])]);
+      styleSheet(ws, colConfigs);
+      return ws;
+    }
+
+    const wb = XLSX.utils.book_new();
+    const dueSoonDays = settings.dueSoonDays||3;
+    const active = loans.filter(l=>!l.tatToan);
+    const cash = calcCashSummary();
+
+    /* Sheet 1: Tổng quan */
+    const overviewRows = [
+      ['Tên chủ sổ', settings.ownerName||''],
+      ['Ngày xuất báo cáo', fmtDateVN(todayStr())],
+      ['Tổng số khoản vay (từ trước đến nay)', String(loans.length)],
+      ['Đang hoạt động', String(active.length)],
+      ['Đã tất toán', String(loans.length-active.length)],
+      ['Sắp đến hạn', String(active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.NHAC_NO).length)],
+      ['Quá hạn', String(active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN).length)],
+      ['Cảnh báo vượt trần lãi suất (>20%/năm)', String(active.filter(l=>calcLaiSuatNam(l)>20).length)],
+      ['Tổng dư nợ gốc đang cho vay', fmtMoney(active.reduce((s,l)=>s+Number(l.tongTienGoc||0),0))],
+      ['Tổng lãi đã thu — mọi kỳ, mọi khoản vay', fmtMoney(loans.reduce((s,l)=>s+calcTongLaiDaThu(l),0))],
+      ['Số dư quỹ hiện tại', fmtMoney(cash.soDu)],
+      ['Tổng đã nạp vốn vào quỹ', fmtMoney(cash.tongNapVon)],
+      ['Tổng đã rút vốn khỏi quỹ', fmtMoney(cash.tongRutVon)],
+      ['Tổng đã giải ngân cho vay — luỹ kế', fmtMoney(cash.tongGiaiNgan)],
+      ['Tổng đã thu hồi gốc — từ các khoản đã tất toán', fmtMoney(cash.tongThuGoc)],
+    ];
+    XLSX.utils.book_append_sheet(wb, sheetFrom(['Chỉ tiêu','Giá trị'], overviewRows,
+      [{width:40}, {width:28, align:'right'}]), 'Tổng quan');
+
+    /* Sheet 2: Danh sách khoản vay */
+    const loanHeaders = ['STT','Tên khách hàng','Tổng tiền gốc','Đơn giá lãi (đ/triệu/ngày)','Lãi suất quy năm','Lãi mỗi kỳ','Chu kỳ (ngày)','Ngày bắt đầu','Ngày đóng lãi gần nhất','Ngày đến hạn tiếp theo','Trạng thái','Tổng số ngày vay','Số kỳ đã thu lãi','Tổng lãi đã thu','Tiền lãi nợ cũ','Ngày tất toán','Ghi chú'];
+    const loanRows = loans.map((l,i)=>{
+      const d = derive(l);
+      return [
+        i+1, l.tenKhachHang, fmtMoney(l.tongTienGoc), (Number(l.donGiaLai)||0).toLocaleString('vi-VN'),
+        fmtPct(d.laiSuatNam), fmtMoney(d.laiKy), l.chuKy, fmtDateVN(l.ngayBatDau), fmtDateVN(l.ngayDongLaiGanNhat),
+        fmtDateVN(d.denHanTiep), STATUS_LABEL[d.trangThai], d.tongSoNgayVay, d.soKyDaThu, fmtMoney(d.tongLaiDaThu),
+        l.tienLaiNoCu?fmtMoney(l.tienLaiNoCu):'', l.tatToan?fmtDateVN(l.ngayTatToan):'', l.ghiChu||''
+      ];
+    });
+    XLSX.utils.book_append_sheet(wb, sheetFrom(loanHeaders, loanRows, [
+      {width:6,align:'center'}, {width:22}, {width:15,align:'right'}, {width:17,align:'right'},
+      {width:13,align:'right'}, {width:14,align:'right'}, {width:10,align:'center'}, {width:13,align:'center'},
+      {width:15,align:'center'}, {width:15,align:'center'}, {width:14,align:'center'}, {width:12,align:'center'},
+      {width:10,align:'center'}, {width:15,align:'right'}, {width:14,align:'right'}, {width:13,align:'center'},
+      {width:38,wrap:true}
+    ]), 'Danh sách khoản vay');
+
+    /* Sheet 3: Lịch sử thu lãi */
+    const interestRaw = [];
+    loans.forEach(l=>{ (l.lichSuThuLai||[]).forEach(h=>{
+      interestRaw.push([l.tenKhachHang, h.ngayThu||'', h.soKy, h.soTien, h.nguoiThucHien||'', h.ghiChu||'']);
+    }); });
+    interestRaw.sort((a,b)=> String(a[1]).localeCompare(String(b[1])));
+    const interestRows = interestRaw.map((r,i)=>[i+1, r[0], fmtDateVN(r[1]), r[2], fmtMoney(r[3]), r[4], r[5]]);
+    XLSX.utils.book_append_sheet(wb, sheetFrom(
+      ['STT','Tên khách hàng','Ngày thu','Số kỳ','Số tiền','Người thực hiện','Ghi chú'], interestRows,
+      [{width:6,align:'center'},{width:22},{width:13,align:'center'},{width:8,align:'center'},{width:16,align:'right'},{width:16},{width:34,wrap:true}]
+    ), 'Lịch sử thu lãi');
+
+    /* Sheet 4: Điều chỉnh lãi suất */
+    const rateRaw = [];
+    loans.forEach(l=>{ (l.lyDoBienDongLai||[]).forEach(r=>{
+      rateRaw.push([l.tenKhachHang, r.ngay||'', r.laiSuatCu, r.laiSuatMoi, r.lyDo||'', r.nguoiThucHien||'']);
+    }); });
+    rateRaw.sort((a,b)=> String(a[1]).localeCompare(String(b[1])));
+    const rateRows = rateRaw.map((r,i)=>[i+1, r[0], fmtDateVN(r[1]), r[2], r[3], r[4], r[5]]);
+    XLSX.utils.book_append_sheet(wb, sheetFrom(
+      ['STT','Tên khách hàng','Ngày điều chỉnh','Lãi suất cũ (đ/tr/ngày)','Lãi suất mới (đ/tr/ngày)','Lý do','Người thực hiện'], rateRows,
+      [{width:6,align:'center'},{width:22},{width:14,align:'center'},{width:17,align:'right'},{width:17,align:'right'},{width:30,wrap:true},{width:16}]
+    ), 'Điều chỉnh lãi suất');
+
+    /* Sheet 5: Sổ quỹ dòng tiền */
+    const sortedCash = cashLedger.slice().sort((a,b)=> String(a.ngay+a.time).localeCompare(String(b.ngay+b.time)));
+    let running = 0;
+    const cashRows = sortedCash.map((t,i)=>{
+      running += t.amount;
+      return [i+1, fmtDateVN(t.ngay), TX_LABEL[t.type]||t.type, t.khachHang||'', fmtMoney(t.amount), fmtMoney(running), t.nguoiThucHien||'', t.ghiChu||''];
+    });
+    XLSX.utils.book_append_sheet(wb, sheetFrom(
+      ['STT','Ngày','Loại giao dịch','Khách hàng liên quan','Số tiền (+vào / -ra)','Số dư luỹ kế','Người thực hiện','Ghi chú'], cashRows,
+      [{width:6,align:'center'},{width:13,align:'center'},{width:18},{width:20},{width:17,align:'right'},{width:16,align:'right'},{width:16},{width:30,wrap:true}]
+    ), 'Sổ quỹ dòng tiền');
+
+    /* Sheet 6: Nhật ký hoạt động */
+    const logRows = activityLog.slice().reverse().map((a,i)=>[
+      i+1, new Date(a.time).toLocaleString('vi-VN'), a.user||'', a.action||'', a.detail||''
+    ]);
+    XLSX.utils.book_append_sheet(wb, sheetFrom(
+      ['STT','Thời gian','Người dùng','Hành động','Chi tiết'], logRows,
+      [{width:6,align:'center'},{width:20,align:'center'},{width:16},{width:22},{width:42,wrap:true}]
+    ), 'Nhật ký hoạt động');
+
+    const filename = `Bao-cao-so-quy-${todayStr()}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    await logActivity('Xuất báo cáo Excel', filename);
+    showToast('Đã tạo file Excel — mở bằng Google Drive hoặc Excel để xem/in.');
+  }catch(e){
+    console.error(e);
+    showToast('Không tạo được file Excel: ' + e.message);
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = oldLabel; }
+  }
 }
 
 /* ---------- Sổ quỹ dòng tiền (panel) ---------- */
