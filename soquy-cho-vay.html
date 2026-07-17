@@ -670,16 +670,16 @@ function calcLaiSuatNam(loan){
 }
 /* Tính số kỳ đã thu ban đầu khi tạo khoản vay (trường hợp nhập khoản vay đã có lịch sử
    thu lãi trước khi vào sổ), dựa trên khoảng cách Ngày vay -> Ngày đóng lãi gần nhất.
-   - "cuoi" (cuối kỳ, trả sau): kỳ chỉ tính là đã thu khi đã tròn 1 chu kỳ.
-     soKy = floor(D / chuKy)
+   Đối chiếu với bảng Google Sheets thực tế đang dùng: dùng ROUND (làm tròn đến kỳ gần nhất),
+   không dùng FLOOR — nếu đã đi quá nửa chu kỳ thì tính luôn là đủ 1 kỳ.
+   - "cuoi" (cuối kỳ, trả sau): soKy = ROUND(D / chuKy)
    - "dau" (đầu kỳ, cắt lãi ngay lúc vay): kỳ 1 coi như đã thu ngay tại Ngày vay (D=0),
-     các kỳ sau đó cứ tròn thêm 1 chu kỳ lại tính thêm 1 kỳ đã thu.
-     soKy = floor(D / chuKy) + 1
+     soKy = ROUND(D / chuKy) + 1
    D được chặn dưới ở 0 để tránh số âm khi nhập ngày ngược. */
 function calcSoKyDaThuBanDau(ngayBatDau, ngayDongLai, chuKy, hinhThuc){
   if(!ngayBatDau || !ngayDongLai || !chuKy) return 0;
   const D = Math.max(0, daysBetween(ngayBatDau, ngayDongLai));
-  const soKy = Math.floor(D/chuKy) + (hinhThuc==='dau' ? 1 : 0);
+  const soKy = Math.round(D/chuKy) + (hinhThuc==='dau' ? 1 : 0);
   return Math.max(0, soKy);
 }
 function calcNgayDenHanTiep(loan){
@@ -1401,8 +1401,8 @@ function openLoanForm(){
     <div class="field">
       <label>Hình thức thu lãi</label>
       <select id="f_hinhthuc" onchange="previewLaiKy()">
-        <option value="cuoi" selected>Cuối kỳ (thu sau)</option>
-        <option value="dau">Đầu kỳ (cắt lãi ngay kỳ 1 lúc giải ngân)</option>
+        <option value="dau" selected>Đầu kỳ (cắt lãi ngay kỳ 1 lúc giải ngân)</option>
+        <option value="cuoi">Cuối kỳ (thu sau)</option>
       </select>
     </div>
     <div class="small-note">Mặc định 2 ngày này giống nhau — áp dụng cho khách vay mới. Nếu khoản vay đã có lịch sử thu lãi trước khi nhập vào sổ, sửa lại đúng ngày đóng lãi gần nhất thực tế — hệ thống sẽ tự tính số kỳ đã thu và tổng lãi đã thu bên dưới, không cần nhập tay.</div>
