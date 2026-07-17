@@ -116,16 +116,10 @@
 
   main{flex:1;max-width:1240px;margin:0 auto;padding:22px 24px 60px;width:100%;}
 
-  .legal-banner{
-    display:none;background:var(--danger-wash);border:1px solid var(--danger);color:var(--danger);
-    border-radius:8px;padding:10px 16px;font-size:0.85rem;margin-bottom:16px;font-weight:600;
-  }
-
   .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px;}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;cursor:default;transition:box-shadow .15s ease;overflow:hidden;}
   .card.clickable{cursor:pointer;}
   .card.clickable:hover{box-shadow:0 4px 14px rgba(22,35,63,0.1);}
-  .card.active-filter{border-color:var(--brass);box-shadow:0 0 0 2px var(--brass-wash);}
   .card .label{font-size:0.68rem;text-transform:uppercase;letter-spacing:.09em;color:var(--neutral);font-weight:600;margin-bottom:6px;}
   .card .value{font-family:var(--font-mono);font-size:1.5rem;font-weight:600;color:var(--ink);line-height:1.25;word-break:break-word;overflow-wrap:break-word;}
   @media (max-width:480px){.card .value{font-size:1.2rem;}}
@@ -167,10 +161,6 @@
   table.ledger td.num{font-family:var(--font-mono);text-align:right;}
   .empty-state{text-align:center;padding:60px 20px;color:var(--ink-soft);}
   .empty-state .big{font-family:var(--font-display);font-size:1.3rem;color:var(--ink);margin-bottom:8px;}
-
-  .rate-flag{display:inline-block;font-family:var(--font-mono);font-size:0.72rem;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;}
-  .rate-flag.warn{background:var(--warning-wash);color:var(--warning);}
-  .rate-flag.danger{background:var(--danger-wash);color:var(--danger);}
 
   /* stamp badge */
   .stamp{
@@ -237,7 +227,7 @@
 <!-- ============ LOADING ============ -->
 <div id="loadingGate" class="gate-wrap">
   <div class="gate-card">
-    <div class="seal lg" style="margin:0 auto;">SQ</div>
+    <div class="seal lg" style="margin:0 auto;">LH</div>
     <div class="gate-title" id="loadingTitle">Đang kết nối...</div>
     <div class="gate-sub" id="loadingSub">Đang tải dữ liệu từ máy chủ, vui lòng chờ trong giây lát.</div>
   </div>
@@ -246,7 +236,7 @@
 <!-- ============ FIRST RUN SETUP (chỉ hiện đúng 1 lần đầu tiên duy nhất) ============ -->
 <div id="setupGate" class="gate-wrap hidden">
   <div class="gate-card">
-    <div class="seal lg" style="margin:0 auto;">SQ</div>
+    <div class="seal lg" style="margin:0 auto;">LH</div>
     <div class="gate-title">Thiết lập Sổ Quỹ</div>
     <div class="gate-sub">Lần đầu tiên duy nhất — tạo tài khoản Quản trị (chủ sổ). Từ sau, mọi người khác tự đăng ký rồi chờ bạn cấp quyền trong Cài đặt.</div>
     <div class="field">
@@ -273,7 +263,7 @@
 <!-- ============ LOGIN / ĐĂNG KÝ ============ -->
 <div id="pinGate" class="gate-wrap hidden">
   <div class="gate-card">
-    <div class="seal lg" style="margin:0 auto;">SQ</div>
+    <div class="seal lg" style="margin:0 auto;">LH</div>
     <div class="gate-title" id="loginTitle">Sổ Quỹ Cho Vay</div>
     <div class="gate-sub" id="pinGateSub">Đăng nhập bằng tài khoản của bạn.</div>
 
@@ -311,7 +301,7 @@
 <!-- ============ CHỜ CẤP QUYỀN ============ -->
 <div id="pendingGate" class="gate-wrap hidden">
   <div class="gate-card">
-    <div class="seal lg" style="margin:0 auto;">SQ</div>
+    <div class="seal lg" style="margin:0 auto;">LH</div>
     <div class="gate-title">Đang chờ cấp quyền</div>
     <div class="gate-sub">Tài khoản của bạn đã tạo thành công, nhưng chủ sổ chưa cấp quyền sử dụng. Báo chủ sổ vào <b>Cài đặt → Quản lý người dùng &amp; phân quyền</b> để cấp quyền cho email của bạn.</div>
     <button class="btn btn-outline btn-block" onclick="location.reload()">Tải lại để kiểm tra lại quyền</button>
@@ -325,7 +315,7 @@
 <div id="appShell">
   <header class="topbar">
     <div class="brand">
-      <div class="seal sm">SQ</div>
+      <div class="seal sm">LH</div>
       <div class="brand-text">
         <div class="eyebrow" id="ownerNameLabel">Sổ Quỹ</div>
         <div class="title">Sổ Quỹ Cho Vay</div>
@@ -341,8 +331,6 @@
   </header>
 
   <main>
-    <div class="legal-banner" id="legalBanner"></div>
-
     <div class="cards" id="dashboardCards"></div>
 
     <div class="tabs">
@@ -436,7 +424,6 @@ let loans = [];
 let activityLog = [];
 let cashLedger = [];
 let currentUser = null;
-let legalFilterOnly = false;
 
 const STATUS = { CHUA_DEN_HAN:'CHUA_DEN_HAN', NHAC_NO:'NHAC_NO', QUA_HAN:'QUA_HAN', TAT_TOAN:'TAT_TOAN' };
 const STATUS_LABEL = {
@@ -714,9 +701,8 @@ function derive(loan){
   const laiSuatNam = calcLaiSuatNam(loan);
   const trangThai = calcTrangThai(loan, settings.dueSoonDays||3);
   const denHanTiep = calcNgayDenHanTiep(loan);
-  const legal = laiSuatNam >= 100 ? 'danger' : (laiSuatNam > 20 ? 'warn' : null);
   return {
-    laiKy, laiSuatNam, trangThai, denHanTiep, legal,
+    laiKy, laiSuatNam, trangThai, denHanTiep,
     tongSoNgayVay: calcTongSoNgayVay(loan),
     soKyDaThu: (loan.lichSuThuLai||[]).length,
     tongLaiDaThu: calcTongLaiDaThu(loan),
@@ -994,7 +980,6 @@ function requireRole(min, msg){
    ============================================================ */
 function renderAll(){
   applyRoleUI();
-  renderLegalBanner();
   renderDashboard();
   renderLoansList();
   renderAITab();
@@ -1006,22 +991,6 @@ function applyRoleUI(){
   if(btn) btn.style.display = roleAtLeast('staff') ? '' : 'none';
 }
 
-function renderLegalBanner(){
-  const activeLoans = loans.filter(l=>!l.tatToan);
-  const hasCriminalRisk = activeLoans.some(l=>calcLaiSuatNam(l) >= 100);
-  const hasCivilExcess = activeLoans.some(l=>{const r=calcLaiSuatNam(l); return r>20 && r<100;});
-  const el = document.getElementById('legalBanner');
-  if(hasCriminalRisk){
-    el.style.display='block';
-    el.textContent = '⚠ Có khoản vay lãi suất quy năm ≥ 100% — vượt 5 lần trần Bộ luật Dân sự, rủi ro cấu thành tội cho vay lãi nặng (Điều 201 BLHS) nếu thu lợi bất chính ≥ 30 triệu đồng. Cân nhắc điều chỉnh ngay.';
-  }else if(hasCivilExcess){
-    el.style.display='block';
-    el.textContent = '⚠ Có khoản vay lãi suất quy năm vượt trần dân sự 20%/năm (Điều 468 BLDS) — phần lãi vượt trần không được pháp luật bảo hộ nếu tranh chấp ra toà.';
-  }else{
-    el.style.display='none';
-  }
-}
-
 function renderDashboard(){
   const active = loans.filter(l=>!l.tatToan);
   const tongDuNo = active.reduce((s,l)=>s+Number(l.tongTienGoc||0),0);
@@ -1029,7 +998,6 @@ function renderDashboard(){
   const dueSoonDays = settings.dueSoonDays||3;
   const sapDenHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.NHAC_NO).length;
   const quaHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN).length;
-  const canhBaoPhapLy = active.filter(l=>calcLaiSuatNam(l)>20).length;
   const cash = calcCashSummary();
 
   const cards = [
@@ -1037,22 +1005,15 @@ function renderDashboard(){
     {label:'Tổng dư nợ gốc (đang cho vay)', value: fmtMoney(tongDuNo), cls:''},
     {label:'Tổng lãi đã thu (mọi kỳ)', value: fmtMoney(tongLaiThu), cls:'ok'},
     {label:'Sắp đến hạn', value: sapDenHan, cls: sapDenHan? 'warn':''},
-    {label:'Quá hạn', value: quaHan, cls: quaHan? 'danger':''},
-    {label:'Cảnh báo vượt trần lãi suất', value: canhBaoPhapLy, cls: canhBaoPhapLy? 'danger':'ok', click:'legal'}
+    {label:'Quá hạn', value: quaHan, cls: quaHan? 'danger':''}
   ];
-  const cardClickFn = { legal:'toggleLegalFilter()', cash:'openCashLedger()' };
+  const cardClickFn = { cash:'openCashLedger()' };
   document.getElementById('dashboardCards').innerHTML = cards.map(c=>`
-    <div class="card ${c.cls} ${c.click?'clickable':''} ${c.click==='legal'&&legalFilterOnly?'active-filter':''}" ${c.click?`onclick="${cardClickFn[c.click]}"`:''}>
+    <div class="card ${c.cls} ${c.click?'clickable':''}" ${c.click?`onclick="${cardClickFn[c.click]}"`:''}>
       <div class="label">${c.label}</div>
       <div class="value">${c.value}</div>
     </div>
   `).join('');
-}
-
-function toggleLegalFilter(){
-  legalFilterOnly = !legalFilterOnly;
-  renderDashboard();
-  renderLoansList();
 }
 
 function getFilteredSortedLoans(){
@@ -1066,7 +1027,6 @@ function getFilteredSortedLoans(){
     if(statusF==='active'){ if(st===STATUS.TAT_TOAN) return false; }
     else if(st !== statusF) return false;
     if(q && !l.tenKhachHang.toLowerCase().includes(q)) return false;
-    if(legalFilterOnly && calcLaiSuatNam(l) <= 20) return false;
     return true;
   });
 
@@ -1110,13 +1070,12 @@ function renderLoansList(){
 
   tbody.innerHTML = list.map(l=>{
     const d = derive(l);
-    const flag = d.legal ? `<span class="rate-flag ${d.legal}">${d.legal==='danger'?'≥100%/năm':'>20%/năm'}</span>` : '';
     return `
       <tr onclick="openLoanDetail('${l.id}')">
         <td>${escapeHtml(l.tenKhachHang)}</td>
         <td class="num">${fmtMoney(l.tongTienGoc)}</td>
         <td class="num">${fmtMoney(d.laiKy)}</td>
-        <td class="num">${fmtPct(d.laiSuatNam)}${flag}</td>
+        <td class="num">${fmtPct(d.laiSuatNam)}</td>
         <td>${fmtDateVN(l.ngayDongLaiGanNhat)}</td>
         <td>${fmtDateVN(d.denHanTiep)}</td>
         <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span></td>
@@ -1171,7 +1130,6 @@ function computePortfolioStats(){
 
   const quaHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN);
   const sapDenHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.NHAC_NO);
-  const vuotTranPhapLy = active.filter(l=>calcLaiSuatNam(l)>20);
 
   let topBorrower = null;
   active.forEach(l=>{
@@ -1180,7 +1138,7 @@ function computePortfolioStats(){
   const topBorrowerShare = (topBorrower && tongDuNo>0) ? Number(topBorrower.tongTienGoc||0)/tongDuNo*100 : 0;
 
   return { active, cash, tongDuNo, tongVonRong, tyLeSuDungVon, laiSuatBinhQuan, uocThuNhapThang,
-    quaHan, sapDenHan, vuotTranPhapLy, topBorrower, topBorrowerShare, dueSoonDays };
+    quaHan, sapDenHan, topBorrower, topBorrowerShare, dueSoonDays };
 }
 
 function computeForecastBuckets(active){
@@ -1209,9 +1167,6 @@ function generateAIInsights(stats){
     const tongQuaHan = stats.quaHan.reduce((s,l)=>s+Number(l.tongTienGoc||0),0);
     list.push({level:'danger', text:`${stats.quaHan.length} khoản đang quá hạn, tổng dư nợ gốc ${fmtMoney(tongQuaHan)} — cần đôn đốc thu hồi ngay.`});
   }
-  if(stats.vuotTranPhapLy.length>0){
-    list.push({level:'warn', text:`${stats.vuotTranPhapLy.length} khoản đang vượt trần lãi suất dân sự 20%/năm (Điều 468 BLDS) — rà soát điều chỉnh để giảm rủi ro pháp lý.`});
-  }
   if(stats.sapDenHan.length>0){
     list.push({level:'warn', text:`${stats.sapDenHan.length} khoản sắp đến hạn trong vòng ${stats.dueSoonDays} ngày — chủ động nhắc khách trước hạn.`});
   }
@@ -1224,7 +1179,7 @@ function generateAIInsights(stats){
     list.push({level:'warn', text:`Khách hàng ${escapeHtml(stats.topBorrower.tenKhachHang)} chiếm ${fmtPct(stats.topBorrowerShare)} tổng dư nợ — rủi ro tập trung vào 1 khách hàng, nên đa dạng hoá danh mục.`});
   }
   if(list.length===0){
-    list.push({level:'ok', text:'Danh mục hiện tại lành mạnh — không có khoản quá hạn, không vượt trần lãi suất, thanh khoản ổn định.'});
+    list.push({level:'ok', text:'Danh mục hiện tại lành mạnh — không có khoản quá hạn, thanh khoản ổn định.'});
   }
   return list;
 }
@@ -1414,7 +1369,6 @@ function openLoanForm(){
     <div class="small-note">Mặc định 2 ngày này giống nhau — áp dụng cho khách vay mới, cắt lãi trước. Nếu khoản vay đã có lịch sử thu lãi trước khi nhập vào sổ, sửa lại đúng ngày đóng lãi gần nhất thực tế (để tính đúng ngày đến hạn tiếp theo).</div>
     <div class="field">
       <div class="preview-line" id="laiKyPreview">Lãi mỗi kỳ: —</div>
-      <small class="hint" id="ratePreview"></small>
     </div>
     <div class="two-col">
       <div class="field"><label>Tiền lãi nợ cũ (nếu có)</label><input type="number" id="f_noCu" value="0"></div>
@@ -1443,10 +1397,6 @@ function previewLaiKy(){
   const laiKy = Math.round(dongia*(goc/1000000)*chuky);
   const rate = dongia*0.0365;
   document.getElementById('laiKyPreview').textContent = `Lãi mỗi kỳ: ${fmtMoney(laiKy)}  (≈ ${fmtPct(rate)}/năm)`;
-  const hint = document.getElementById('ratePreview');
-  if(rate>=100) hint.innerHTML = '<span style="color:var(--danger)">Vượt ngưỡng 100%/năm — rủi ro hình sự nếu thu lợi bất chính ≥30 triệu (Điều 201 BLHS).</span>';
-  else if(rate>20) hint.innerHTML = '<span style="color:var(--warning)">Vượt trần dân sự 20%/năm (Điều 468 BLDS) — phần vượt không được pháp luật bảo hộ.</span>';
-  else hint.textContent = '';
 }
 async function submitLoanForm(){
   const ten = document.getElementById('f_ten').value.trim();
@@ -1493,7 +1443,6 @@ function openLoanDetail(id){
     <h2>${escapeHtml(loan.tenKhachHang)}</h2>
     <div class="modal-sub">
       <span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>
-      ${d.legal?`<span class="rate-flag ${d.legal}">${d.legal==='danger'?'≥100%/năm — rủi ro hình sự':'>20%/năm — vượt trần dân sự'}</span>`:''}
     </div>
     <div class="kv-grid">
       <div class="k">Tổng tiền gốc</div><div class="v">${fmtMoney(loan.tongTienGoc)}</div>
@@ -1987,7 +1936,6 @@ async function exportExcelReport(){
       ['Đã tất toán', String(loans.length-active.length)],
       ['Sắp đến hạn', String(active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.NHAC_NO).length)],
       ['Quá hạn', String(active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN).length)],
-      ['Cảnh báo vượt trần lãi suất (>20%/năm)', String(active.filter(l=>calcLaiSuatNam(l)>20).length)],
       ['Tổng dư nợ gốc đang cho vay', fmtMoney(active.reduce((s,l)=>s+Number(l.tongTienGoc||0),0))],
       ['Tổng lãi đã thu — mọi kỳ, mọi khoản vay', fmtMoney(loans.reduce((s,l)=>s+calcTongLaiDaThu(l),0))],
       ['Số dư quỹ hiện tại', fmtMoney(cash.soDu)],
