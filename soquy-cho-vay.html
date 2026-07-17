@@ -231,38 +231,49 @@
   <div class="gate-card">
     <div class="seal lg" style="margin:0 auto;">SQ</div>
     <div class="gate-title">Thiết lập Sổ Quỹ</div>
-    <div class="gate-sub">Khởi tạo lần đầu — chỉ làm một lần trên toàn bộ dữ liệu chung.</div>
+    <div class="gate-sub">Lần đầu tiên — tạo tài khoản Quản trị (chủ sổ). Các lần sau, ông chủ tự tạo thêm tài khoản cho từng người trong Cài đặt.</div>
     <div class="field">
-      <label>Tên chủ sổ</label>
+      <label>Tên chủ sổ (hiển thị trong app)</label>
       <input type="text" id="setupOwnerName" placeholder="VD: Anh Minh">
     </div>
     <div class="field">
-      <label>Mã PIN chung (mở app — cho cả chủ &amp; nhân viên)</label>
-      <input type="password" id="setupPin" inputmode="numeric" placeholder="Tối thiểu 4 số">
+      <label>Email đăng nhập của chủ sổ</label>
+      <input type="email" id="setupEmail" placeholder="ban@gmail.com" autocomplete="off">
     </div>
     <div class="field">
-      <label>Mã PIN Quản trị (chỉ chủ biết — để sửa/xoá dữ liệu gốc)</label>
-      <input type="password" id="setupAdminPin" inputmode="numeric" placeholder="Khác với PIN chung">
+      <label>Mật khẩu đăng nhập (tối thiểu 6 ký tự)</label>
+      <input type="password" id="setupPassword" placeholder="Mật khẩu của riêng bạn" autocomplete="new-password">
+    </div>
+    <div class="field">
+      <label>Mã PIN Quản trị (dùng khi sửa/xoá dữ liệu gốc, thêm người dùng)</label>
+      <input type="password" id="setupAdminPin" inputmode="numeric" placeholder="VD: 4 số bất kỳ, khác mật khẩu">
+    </div>
+    <div class="field" id="migrateOldPinField" style="display:none;">
+      <label>Mã PIN Quản trị đã dùng trước đây (để xác nhận đúng là chủ sổ)</label>
+      <input type="password" id="setupOldAdminPin" inputmode="numeric" placeholder="Nhập đúng mã PIN Quản trị cũ">
     </div>
     <div class="err-msg" id="setupErr"></div>
-    <button class="btn btn-brass btn-block" onclick="doSetup()">Khởi tạo &amp; bắt đầu</button>
+    <button class="btn btn-brass btn-block" onclick="doSetup()">Tạo tài khoản &amp; bắt đầu</button>
   </div>
 </div>
 
-<!-- ============ PIN GATE ============ -->
+<!-- ============ LOGIN GATE ============ -->
 <div id="pinGate" class="gate-wrap hidden">
   <div class="gate-card">
     <div class="seal lg" style="margin:0 auto;">SQ</div>
     <div class="gate-title">Sổ Quỹ Cho Vay</div>
-    <div class="gate-sub" id="pinGateSub">Nhập Tên chủ sổ và mã PIN để mở.</div>
+    <div class="gate-sub" id="pinGateSub">Đăng nhập bằng tài khoản đã được cấp.</div>
     <div class="field">
-      <input type="text" id="loginNameInput" placeholder="Tên chủ sổ" autocomplete="off" autofocus>
+      <input type="email" id="loginEmailInput" placeholder="Email" autocomplete="username" autofocus>
     </div>
     <div class="field">
-      <input type="password" id="pinInput" inputmode="numeric" placeholder="Mã PIN">
+      <input type="password" id="pinInput" placeholder="Mật khẩu" autocomplete="current-password">
     </div>
     <div class="err-msg" id="pinErr"></div>
-    <button class="btn btn-primary btn-block" onclick="tryUnlock()">Mở sổ</button>
+    <button class="btn btn-primary btn-block" onclick="tryUnlock()">Đăng nhập</button>
+    <div style="margin-top:14px;">
+      <a href="#" onclick="askForgotPassword();return false;" style="font-size:0.82rem;color:var(--ink-soft);text-decoration:underline;">Quên mật khẩu?</a>
+    </div>
   </div>
 </div>
 
@@ -277,10 +288,11 @@
       </div>
     </div>
     <div class="topbar-right">
-      <select id="currentUserSelect" onchange="onUserChange()"></select>
+      <span class="icon-btn" id="loggedInAsLabel" style="cursor:default;"></span>
       <button class="icon-btn" onclick="openCashLedger()">Sổ quỹ</button>
       <button class="icon-btn" onclick="openActivityLog()">Nhật ký</button>
       <button class="icon-btn" onclick="openSettings()">Cài đặt</button>
+      <button class="icon-btn" onclick="doLogout()">Đăng xuất</button>
     </div>
   </header>
 
@@ -338,6 +350,7 @@
    SỔ QUỸ CHO VAY — state & storage
    ============================================================ */
 let settings = null;
+let isMigrationMode = false;
 let loans = [];
 let activityLog = [];
 let cashLedger = [];
@@ -376,14 +389,47 @@ const FS_DOC_MAP = {
   'cash-ledger': 'sổ quỹ'
 };
 let fsDb=null, fsDocFn=null, fsGetDocFn=null, fsSetDocFn=null, fsReady=false;
+let fbAppMod=null, fbAuthMod=null, fsAuth=null, fbApp=null;
 
 async function initFirebase(){
-  const appMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
-  const fsMod  = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
-  const app = appMod.initializeApp(firebaseConfig);
-  fsDb = fsMod.getFirestore(app);
+  const appMod  = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
+  const fsMod   = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+  const authMod = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js");
+  fbAppMod = appMod; fbAuthMod = authMod;
+  fbApp = appMod.initializeApp(firebaseConfig);
+  fsDb = fsMod.getFirestore(fbApp);
   fsDocFn = fsMod.doc; fsGetDocFn = fsMod.getDoc; fsSetDocFn = fsMod.setDoc;
+  fsAuth = authMod.getAuth(fbApp);
   fsReady = true;
+}
+
+/* ---------- Đăng nhập / tài khoản (Firebase Authentication) ---------- */
+async function authSignIn(email, password){
+  return fbAuthMod.signInWithEmailAndPassword(fsAuth, email, password);
+}
+async function authSignOut(){
+  return fbAuthMod.signOut(fsAuth);
+}
+async function authCreateFirstAccount(email, password, displayName){
+  const cred = await fbAuthMod.createUserWithEmailAndPassword(fsAuth, email, password);
+  await fbAuthMod.updateProfile(cred.user, { displayName });
+  return cred.user;
+}
+/* Chủ sổ tạo tài khoản cho người khác — dùng 1 phiên Firebase phụ để không bị đăng xuất khỏi phiên của chính mình */
+async function authCreateStaffAccount(email, password, displayName){
+  const secondaryApp = fbAppMod.initializeApp(firebaseConfig, 'staff-creator-'+Date.now());
+  const secondaryAuth = fbAuthMod.getAuth(secondaryApp);
+  try{
+    const cred = await fbAuthMod.createUserWithEmailAndPassword(secondaryAuth, email, password);
+    await fbAuthMod.updateProfile(cred.user, { displayName });
+    await fbAuthMod.signOut(secondaryAuth);
+  }finally{
+    try{ await fbAppMod.deleteApp(secondaryApp); }catch(e){}
+  }
+  return true;
+}
+async function authSendPasswordReset(email){
+  return fbAuthMod.sendPasswordResetEmail(fsAuth, email);
 }
 
 /* ---------- storage helpers (giữ nguyên interface cũ, phía dưới đổi sang Firestore) ---------- */
@@ -617,44 +663,108 @@ async function init(){
     document.getElementById('setupGate').classList.remove('hidden');
     return;
   }
+  const hasRealAccount = Array.isArray(settings.staffList) && settings.staffList.length>0
+    && typeof settings.staffList[0]==='object' && settings.staffList[0] && settings.staffList[0].email;
+  if(!hasRealAccount){
+    /* Dữ liệu cũ, chưa từng có tài khoản Email/Mật khẩu thật — chuyển sang nâng cấp */
+    isMigrationMode = true;
+    document.getElementById('setupGate').classList.remove('hidden');
+    document.querySelector('#setupGate .gate-sub').textContent = 'Phát hiện dữ liệu cũ — nâng cấp sang đăng nhập bằng Email/Mật khẩu thật. Nhập đúng Mã PIN Quản trị cũ để xác nhận bạn là chủ sổ.';
+    document.getElementById('migrateOldPinField').style.display = '';
+    document.getElementById('setupOwnerName').value = settings.ownerName || '';
+    return;
+  }
   document.getElementById('pinGate').classList.remove('hidden');
-  document.getElementById('pinGateSub').textContent = `Nhập Tên chủ sổ và mã PIN để mở.`;
+  document.getElementById('pinGateSub').textContent = `Đăng nhập bằng tài khoản đã được cấp.`;
 }
 
 async function doSetup(){
   const owner = document.getElementById('setupOwnerName').value.trim();
-  const pin = document.getElementById('setupPin').value.trim();
+  const email = document.getElementById('setupEmail').value.trim();
+  const password = document.getElementById('setupPassword').value;
   const adminPin = document.getElementById('setupAdminPin').value.trim();
   const err = document.getElementById('setupErr');
-  if(!owner || !pin || !adminPin){ err.textContent = 'Điền đủ các trường.'; return; }
-  if(pin.length < 4){ err.textContent = 'PIN chung cần ít nhất 4 ký tự.'; return; }
-  if(pin === adminPin){ err.textContent = 'PIN quản trị phải khác PIN chung.'; return; }
-  settings = {
-    ownerName: owner, pin, adminPin, dueSoonDays: 3,
-    staffList: [owner], cashLedgerMigrated: true
-  };
-  await saveSettings();
-  loans = []; await saveLoans();
-  activityLog = []; await saveActivityLog();
-  cashLedger = []; await saveCashLedger();
-  currentUser = owner;
-  document.getElementById('setupGate').classList.add('hidden');
-  enterApp();
+  if(!owner || !email || !password || !adminPin){ err.textContent = 'Điền đủ các trường.'; return; }
+  if(password.length < 6){ err.textContent = 'Mật khẩu cần ít nhất 6 ký tự.'; return; }
+  if(adminPin.length < 4){ err.textContent = 'Mã PIN Quản trị cần ít nhất 4 ký tự.'; return; }
+
+  if(isMigrationMode){
+    const oldPin = document.getElementById('setupOldAdminPin').value.trim();
+    if(oldPin !== settings.adminPin){ err.textContent = 'Sai Mã PIN Quản trị cũ — không xác nhận được bạn là chủ sổ.'; return; }
+  }
+
+  err.textContent = 'Đang tạo tài khoản...';
+  try{
+    await authCreateFirstAccount(email, password, owner);
+    if(isMigrationMode){
+      /* Giữ nguyên loans/cashLedger/activityLog cũ, chỉ nâng cấp phần tài khoản đăng nhập */
+      settings.ownerName = owner;
+      settings.adminPin = adminPin;
+      settings.staffList = [{email, displayName: owner}];
+      delete settings.pin;
+    }else{
+      settings = {
+        ownerName: owner, adminPin, dueSoonDays: 3,
+        staffList: [{email, displayName: owner}], cashLedgerMigrated: true
+      };
+    }
+    await saveSettings();
+    if(!isMigrationMode){
+      loans = []; await saveLoans();
+      activityLog = []; await saveActivityLog();
+      cashLedger = []; await saveCashLedger();
+    }
+    currentUser = owner;
+    document.getElementById('setupGate').classList.add('hidden');
+    enterApp();
+  }catch(e){
+    console.error(e);
+    err.textContent = authErrorMessage(e);
+  }
 }
 
-function tryUnlock(){
-  const name = document.getElementById('loginNameInput').value.trim();
-  const val = document.getElementById('pinInput').value.trim();
+function authErrorMessage(e){
+  const code = e && e.code || '';
+  if(code==='auth/email-already-in-use') return 'Email này đã có tài khoản.';
+  if(code==='auth/invalid-email') return 'Email không hợp lệ.';
+  if(code==='auth/weak-password') return 'Mật khẩu quá yếu (tối thiểu 6 ký tự).';
+  if(code==='auth/wrong-password' || code==='auth/invalid-credential') return 'Sai email hoặc mật khẩu.';
+  if(code==='auth/user-not-found') return 'Không tìm thấy tài khoản với email này.';
+  if(code==='auth/too-many-requests') return 'Sai quá nhiều lần — thử lại sau ít phút.';
+  if(code==='auth/network-request-failed') return 'Lỗi mạng — kiểm tra kết nối Internet.';
+  return 'Có lỗi xảy ra: ' + (e && e.message ? e.message : String(e));
+}
+
+async function tryUnlock(){
+  const email = document.getElementById('loginEmailInput').value.trim();
+  const password = document.getElementById('pinInput').value;
   const err = document.getElementById('pinErr');
-  if(!name || !val){ err.textContent = 'Nhập đủ Tên chủ sổ và mã PIN.'; return; }
-  if(name.toLowerCase() !== String(settings.ownerName||'').trim().toLowerCase()){
-    err.textContent = 'Tên chủ sổ không đúng.'; return;
+  if(!email || !password){ err.textContent = 'Nhập đủ Email và mật khẩu.'; return; }
+  err.textContent = 'Đang đăng nhập...';
+  try{
+    const cred = await authSignIn(email, password);
+    currentUser = cred.user.displayName || cred.user.email;
+    document.getElementById('pinGate').classList.add('hidden');
+    enterApp();
+  }catch(e){
+    console.error(e);
+    err.textContent = authErrorMessage(e);
   }
-  if(val !== settings.pin){
-    err.textContent = 'Sai mã PIN.'; return;
-  }
-  document.getElementById('pinGate').classList.add('hidden');
-  enterApp();
+}
+function askForgotPassword(){
+  const email = document.getElementById('loginEmailInput').value.trim();
+  if(!email){ document.getElementById('pinErr').textContent = 'Nhập email của bạn ở ô trên trước, rồi bấm lại "Quên mật khẩu?".'; return; }
+  authSendPasswordReset(email).then(()=>{
+    document.getElementById('pinErr').style.color = 'var(--success)';
+    document.getElementById('pinErr').textContent = 'Đã gửi email đặt lại mật khẩu — kiểm tra hộp thư.';
+  }).catch(e=>{
+    document.getElementById('pinErr').style.color = '';
+    document.getElementById('pinErr').textContent = authErrorMessage(e);
+  });
+}
+async function doLogout(){
+  try{ await authSignOut(); }catch(e){ console.error(e); }
+  location.reload();
 }
 document.addEventListener('keydown', (e)=>{
   if(e.key === 'Enter'){
@@ -669,19 +779,9 @@ async function enterApp(){
   await loadCashLedger();
   await migrateCashLedgerIfNeeded();
   document.getElementById('ownerNameLabel').textContent = `Sổ của ${settings.ownerName}`;
-  populateUserSelect();
+  document.getElementById('loggedInAsLabel').textContent = `👤 ${currentUser}`;
   document.getElementById('appShell').style.display = 'flex';
   renderAll();
-}
-
-function populateUserSelect(){
-  const sel = document.getElementById('currentUserSelect');
-  sel.innerHTML = '<option value="">— Chọn tên —</option>' +
-    settings.staffList.map(n=>`<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
-  if(currentUser && settings.staffList.includes(currentUser)) sel.value = currentUser;
-}
-function onUserChange(){
-  currentUser = document.getElementById('currentUserSelect').value || null;
 }
 
 function escapeHtml(s){
@@ -690,7 +790,7 @@ function escapeHtml(s){
 
 function requireUser(){
   if(!currentUser){
-    showToast('Hãy chọn tên của bạn ở góc trên trước khi thao tác.');
+    showToast('Phiên đăng nhập có vấn đề — hãy tải lại trang và đăng nhập lại.');
     return false;
   }
   return true;
@@ -1202,25 +1302,38 @@ function openActivityLog(){
 
 /* ---------- Settings panel ---------- */
 function openSettings(){
+  const staff = settings.staffList||[];
   openModal(`
     <h2>Cài đặt</h2>
     <div class="field"><label>Tên chủ sổ</label><input type="text" id="st_owner" value="${escapeHtml(settings.ownerName)}"></div>
     <div class="field"><label>Ngưỡng "sắp đến hạn" (số ngày)</label><input type="number" id="st_duesoon" value="${settings.dueSoonDays}"></div>
-    <div class="field">
-      <label>Danh sách người dùng</label>
-      <div id="staffChips">${settings.staffList.map(n=>`<span class="staff-chip">${escapeHtml(n)} <button onclick="removeStaff('${escapeHtml(n)}')">×</button></span>`).join('')}</div>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <input type="text" id="st_newstaff" placeholder="Tên nhân viên mới" style="flex:1;padding:8px;border:1px solid var(--line);border-radius:6px;">
-        <button class="btn btn-outline" onclick="addStaff()">Thêm</button>
-      </div>
-    </div>
+
     <div class="detail-section">
-      <h3>Đổi mã PIN</h3>
-      <div class="two-col">
-        <div class="field"><label>PIN chung mới</label><input type="password" id="st_pin"></div>
-        <div class="field"><label>PIN Quản trị mới</label><input type="password" id="st_adminpin"></div>
-      </div>
-      <div class="field"><label>Xác nhận bằng PIN Quản trị hiện tại</label><input type="password" id="st_confirmpin"></div>
+      <h3>Tài khoản của tôi</h3>
+      <div class="small-note" style="margin-bottom:10px;">Đang đăng nhập: <b>${escapeHtml(currentUser||'')}</b></div>
+      <button class="btn btn-outline" onclick="doChangeOwnPassword()">Đổi mật khẩu của tôi (gửi email đặt lại)</button>
+    </div>
+
+    <div class="detail-section">
+      <h3>Danh sách tài khoản đã cấp (${staff.length})</h3>
+      <div id="staffChips">${staff.length? staff.map(u=>`<span class="staff-chip">${escapeHtml(u.displayName||u.email)} <small style="color:var(--neutral)">(${escapeHtml(u.email)})</small></span>`).join('') : '<span class="small-note">Chưa có ai ngoài chủ sổ.</span>'}</div>
+      <div class="small-note" style="margin-top:8px;">Đây là danh sách để xem — muốn thu hồi quyền của ai, cần vào Firebase Console (mục Authentication) xoá tài khoản đó, báo tao nếu cần hướng dẫn.</div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Thêm tài khoản mới (chỉ chủ sổ làm được)</h3>
+      <div class="field"><label>Tên hiển thị</label><input type="text" id="st_newname" placeholder="VD: Chị Lan"></div>
+      <div class="field"><label>Email đăng nhập</label><input type="email" id="st_newemail" placeholder="email-cua-ho@gmail.com"></div>
+      <div class="field"><label>Mật khẩu tạm thời (họ nên đổi ngay sau khi đăng nhập)</label><input type="text" id="st_newpass" placeholder="Tối thiểu 6 ký tự"></div>
+      <div class="field"><label>Mã PIN Quản trị (để xác nhận)</label><input type="password" id="st_addpin"></div>
+      <div class="err-msg" id="addStaffErr"></div>
+      <button class="btn btn-outline" onclick="addStaff()">Tạo tài khoản</button>
+    </div>
+
+    <div class="detail-section">
+      <h3>Đổi Mã PIN Quản trị</h3>
+      <div class="field"><label>Mã PIN Quản trị mới</label><input type="password" id="st_adminpin"></div>
+      <div class="field"><label>Xác nhận bằng Mã PIN Quản trị hiện tại</label><input type="password" id="st_confirmpin"></div>
       <div class="err-msg" id="settingsErr"></div>
     </div>
     <div class="detail-section">
@@ -1242,33 +1355,50 @@ function openSettings(){
   `);
 }
 async function addStaff(){
-  const name = document.getElementById('st_newstaff').value.trim();
-  if(!name) return;
-  if(!settings.staffList.includes(name)) settings.staffList.push(name);
-  await saveSettings();
-  populateUserSelect();
-  openSettings();
+  const name = document.getElementById('st_newname').value.trim();
+  const email = document.getElementById('st_newemail').value.trim();
+  const pass = document.getElementById('st_newpass').value;
+  const pin = document.getElementById('st_addpin').value;
+  const err = document.getElementById('addStaffErr');
+  if(!name || !email || !pass){ err.textContent = 'Điền đủ Tên, Email, Mật khẩu.'; return; }
+  if(pass.length < 6){ err.textContent = 'Mật khẩu cần ít nhất 6 ký tự.'; return; }
+  if(pin !== settings.adminPin){ err.textContent = 'Sai Mã PIN Quản trị.'; return; }
+  err.textContent = 'Đang tạo tài khoản...';
+  try{
+    await authCreateStaffAccount(email, pass, name);
+    settings.staffList = settings.staffList||[];
+    settings.staffList.push({email, displayName:name});
+    await saveSettings();
+    await logActivity('Thêm tài khoản mới', `${name} (${email})`);
+    closeModal(); openSettings();
+    showToast(`Đã tạo tài khoản cho ${name}. Gửi email + mật khẩu tạm này cho họ.`);
+  }catch(e){
+    console.error(e);
+    err.textContent = authErrorMessage(e);
+  }
 }
-async function removeStaff(name){
-  settings.staffList = settings.staffList.filter(n=>n!==name);
-  await saveSettings();
-  populateUserSelect();
-  openSettings();
+function doChangeOwnPassword(){
+  if(!currentUser){ showToast('Không xác định được tài khoản đang đăng nhập.'); return; }
+  const email = fsAuth && fsAuth.currentUser ? fsAuth.currentUser.email : null;
+  if(!email){ showToast('Không lấy được email tài khoản hiện tại.'); return; }
+  authSendPasswordReset(email).then(()=>{
+    showToast(`Đã gửi email đặt lại mật khẩu tới ${email} — kiểm tra hộp thư.`);
+  }).catch(e=>{
+    showToast(authErrorMessage(e));
+  });
 }
 async function saveSettingsForm(){
   const owner = document.getElementById('st_owner').value.trim();
   const dueSoon = Number(document.getElementById('st_duesoon').value)||3;
-  const newPin = document.getElementById('st_pin').value.trim();
   const newAdminPin = document.getElementById('st_adminpin').value.trim();
   const confirmPin = document.getElementById('st_confirmpin').value.trim();
   const err = document.getElementById('settingsErr');
 
-  if((newPin || newAdminPin) && confirmPin !== settings.adminPin){
-    err.textContent = 'Cần đúng PIN Quản trị hiện tại để đổi mã PIN.'; return;
+  if(newAdminPin && confirmPin !== settings.adminPin){
+    err.textContent = 'Cần đúng Mã PIN Quản trị hiện tại để đổi.'; return;
   }
   settings.ownerName = owner || settings.ownerName;
   settings.dueSoonDays = dueSoon;
-  if(newPin) settings.pin = newPin;
   if(newAdminPin) settings.adminPin = newAdminPin;
   await saveSettings();
   document.getElementById('ownerNameLabel').textContent = `Sổ của ${settings.ownerName}`;
@@ -1296,9 +1426,8 @@ function importBackup(evt){
       settings = data.settings; loans = data.loans; activityLog = data.activityLog||[];
       cashLedger = data.cashLedger||[];
       await saveSettings(); await saveLoans(); await saveActivityLog(); await saveCashLedger();
-      populateUserSelect();
       closeModal(); renderAll();
-      showToast('Đã khôi phục dữ liệu từ file sao lưu.');
+      showToast('Đã khôi phục dữ liệu. Lưu ý: file sao lưu không khôi phục tài khoản đăng nhập (email/mật khẩu) — các tài khoản vẫn giữ nguyên như hiện tại.');
     }catch(e){
       showToast('File sao lưu không hợp lệ.');
     }
