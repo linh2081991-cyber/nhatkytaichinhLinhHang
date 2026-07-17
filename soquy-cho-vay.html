@@ -611,6 +611,9 @@ function fmtMoney(n){
 function fmtPct(n){
   return (Math.round(n*10)/10).toLocaleString('vi-VN') + '%';
 }
+function fmtInt(n){
+  return (Number(n)||0).toLocaleString('vi-VN');
+}
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
 /* ---------- core computations ---------- */
@@ -1183,12 +1186,12 @@ function openLoanDetail(id){
       <div class="k">Đơn giá lãi</div><div class="v">${(loan.donGiaLai||0).toLocaleString('vi-VN')}đ/tr/ngày</div>
       <div class="k">Lãi suất quy năm</div><div class="v">${fmtPct(d.laiSuatNam)}</div>
       <div class="k">Lãi mỗi kỳ</div><div class="v">${fmtMoney(d.laiKy)}</div>
-      <div class="k">Chu kỳ</div><div class="v">${loan.chuKy} ngày</div>
+      <div class="k">Chu kỳ</div><div class="v">${fmtInt(loan.chuKy)} ngày</div>
       <div class="k">Ngày bắt đầu</div><div class="v">${fmtDateVN(loan.ngayBatDau)}</div>
       <div class="k">Ngày đóng lãi gần nhất</div><div class="v">${fmtDateVN(loan.ngayDongLaiGanNhat)}</div>
       <div class="k">Ngày đến hạn tiếp</div><div class="v">${fmtDateVN(d.denHanTiep)}</div>
-      <div class="k">Tổng số ngày vay</div><div class="v">${d.tongSoNgayVay}</div>
-      <div class="k">Số kỳ đã thu</div><div class="v">${d.soKyDaThu}</div>
+      <div class="k">Tổng số ngày vay</div><div class="v">${(Number(d.tongSoNgayVay)||0).toLocaleString('vi-VN')}</div>
+      <div class="k">Số kỳ đã thu</div><div class="v">${fmtInt(d.soKyDaThu)}</div>
       <div class="k">Tổng lãi đã thu</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
       ${Object.entries(d.laiTheoNam).map(([y,v])=>`<div class="k">Lãi đã thu ${y}</div><div class="v">${fmtMoney(v)}</div>`).join('')}
       ${loan.tienLaiNoCu?`<div class="k">Tiền lãi nợ cũ</div><div class="v">${fmtMoney(loan.tienLaiNoCu)}</div>`:''}
@@ -1210,7 +1213,7 @@ function openLoanDetail(id){
       ${rateLog.map(r=>`
         <div class="history-row">
           <span>${fmtDateVN(r.ngay)} · ${escapeHtml(r.nguoiThucHien||'—')} · ${escapeHtml(r.lyDo||'')}</span>
-          <span class="mono">${r.laiSuatCu}→${r.laiSuatMoi} đ/tr/ng</span>
+          <span class="mono">${fmtInt(r.laiSuatCu)}→${fmtInt(r.laiSuatMoi)} đ/tr/ng</span>
         </div>`).join('')}
     </div>`:''}
 
@@ -1366,7 +1369,7 @@ async function submitRateChange(id){
   loan.lyDoBienDongLai.push({ngay:todayStr(), laiSuatCu:loan.donGiaLai, laiSuatMoi:newRate, lyDo:lydo, nguoiThucHien:currentUser});
   loan.donGiaLai = newRate;
   await saveLoans();
-  await logActivity('Đổi lãi suất', `${loan.tenKhachHang} → ${newRate}đ/tr/ngày (${lydo})`);
+  await logActivity('Đổi lãi suất', `${loan.tenKhachHang} → ${fmtInt(newRate)}đ/tr/ngày (${lydo})`);
   closeModal(); renderAll();
   showToast('Đã cập nhật lãi suất.');
 }
@@ -1685,8 +1688,8 @@ async function exportExcelReport(){
       const d = derive(l);
       return [
         i+1, l.tenKhachHang, fmtMoney(l.tongTienGoc), (Number(l.donGiaLai)||0).toLocaleString('vi-VN'),
-        fmtPct(d.laiSuatNam), fmtMoney(d.laiKy), l.chuKy, fmtDateVN(l.ngayBatDau), fmtDateVN(l.ngayDongLaiGanNhat),
-        fmtDateVN(d.denHanTiep), STATUS_LABEL[d.trangThai], d.tongSoNgayVay, d.soKyDaThu, fmtMoney(d.tongLaiDaThu),
+        fmtPct(d.laiSuatNam), fmtMoney(d.laiKy), fmtInt(l.chuKy), fmtDateVN(l.ngayBatDau), fmtDateVN(l.ngayDongLaiGanNhat),
+        fmtDateVN(d.denHanTiep), STATUS_LABEL[d.trangThai], fmtInt(d.tongSoNgayVay), fmtInt(d.soKyDaThu), fmtMoney(d.tongLaiDaThu),
         l.tienLaiNoCu?fmtMoney(l.tienLaiNoCu):'', l.tatToan?fmtDateVN(l.ngayTatToan):'', l.ghiChu||''
       ];
     });
@@ -1704,7 +1707,7 @@ async function exportExcelReport(){
       interestRaw.push([l.tenKhachHang, h.ngayThu||'', h.soKy, h.soTien, h.nguoiThucHien||'', h.ghiChu||'']);
     }); });
     interestRaw.sort((a,b)=> String(a[1]).localeCompare(String(b[1])));
-    const interestRows = interestRaw.map((r,i)=>[i+1, r[0], fmtDateVN(r[1]), r[2], fmtMoney(r[3]), r[4], r[5]]);
+    const interestRows = interestRaw.map((r,i)=>[i+1, r[0], fmtDateVN(r[1]), fmtInt(r[2]), fmtMoney(r[3]), r[4], r[5]]);
     XLSX.utils.book_append_sheet(wb, sheetFrom(
       ['STT','Tên khách hàng','Ngày thu','Số kỳ','Số tiền','Người thực hiện','Ghi chú'], interestRows,
       [{width:6,align:'center'},{width:22},{width:13,align:'center'},{width:8,align:'center'},{width:16,align:'right'},{width:16},{width:34,wrap:true}]
@@ -1716,7 +1719,7 @@ async function exportExcelReport(){
       rateRaw.push([l.tenKhachHang, r.ngay||'', r.laiSuatCu, r.laiSuatMoi, r.lyDo||'', r.nguoiThucHien||'']);
     }); });
     rateRaw.sort((a,b)=> String(a[1]).localeCompare(String(b[1])));
-    const rateRows = rateRaw.map((r,i)=>[i+1, r[0], fmtDateVN(r[1]), r[2], r[3], r[4], r[5]]);
+    const rateRows = rateRaw.map((r,i)=>[i+1, r[0], fmtDateVN(r[1]), fmtInt(r[2]), fmtInt(r[3]), r[4], r[5]]);
     XLSX.utils.book_append_sheet(wb, sheetFrom(
       ['STT','Tên khách hàng','Ngày điều chỉnh','Lãi suất cũ (đ/tr/ngày)','Lãi suất mới (đ/tr/ngày)','Lý do','Người thực hiện'], rateRows,
       [{width:6,align:'center'},{width:22},{width:14,align:'center'},{width:17,align:'right'},{width:17,align:'right'},{width:30,wrap:true},{width:16}]
