@@ -226,12 +226,12 @@
   </div>
 </div>
 
-<!-- ============ FIRST RUN SETUP ============ -->
+<!-- ============ FIRST RUN SETUP (chỉ hiện đúng 1 lần đầu tiên duy nhất) ============ -->
 <div id="setupGate" class="gate-wrap hidden">
   <div class="gate-card">
     <div class="seal lg" style="margin:0 auto;">SQ</div>
     <div class="gate-title">Thiết lập Sổ Quỹ</div>
-    <div class="gate-sub">Lần đầu tiên — tạo tài khoản Quản trị (chủ sổ). Các lần sau, ông chủ tự tạo thêm tài khoản cho từng người trong Cài đặt.</div>
+    <div class="gate-sub">Lần đầu tiên duy nhất — tạo tài khoản Quản trị (chủ sổ). Từ sau, mọi người khác tự đăng ký rồi chờ bạn cấp quyền trong Cài đặt.</div>
     <div class="field">
       <label>Tên chủ sổ (hiển thị trong app)</label>
       <input type="text" id="setupOwnerName" placeholder="VD: Anh Minh">
@@ -245,34 +245,61 @@
       <input type="password" id="setupPassword" placeholder="Mật khẩu của riêng bạn" autocomplete="new-password">
     </div>
     <div class="field">
-      <label>Mã PIN Quản trị (dùng khi sửa/xoá dữ liệu gốc, thêm người dùng)</label>
+      <label>Mã PIN Quản trị (dùng khi sửa/xoá dữ liệu gốc)</label>
       <input type="password" id="setupAdminPin" inputmode="numeric" placeholder="VD: 4 số bất kỳ, khác mật khẩu">
     </div>
-    <div class="field" id="migrateOldPinField" style="display:none;">
-      <label>Mã PIN Quản trị đã dùng trước đây (để xác nhận đúng là chủ sổ)</label>
-      <input type="password" id="setupOldAdminPin" inputmode="numeric" placeholder="Nhập đúng mã PIN Quản trị cũ">
-    </div>
     <div class="err-msg" id="setupErr"></div>
-    <button class="btn btn-brass btn-block" onclick="doSetup()">Tạo tài khoản &amp; bắt đầu</button>
+    <button class="btn btn-brass btn-block" onclick="doSetup()">Tạo tài khoản chủ sổ &amp; bắt đầu</button>
   </div>
 </div>
 
-<!-- ============ LOGIN GATE ============ -->
+<!-- ============ LOGIN / ĐĂNG KÝ ============ -->
 <div id="pinGate" class="gate-wrap hidden">
   <div class="gate-card">
     <div class="seal lg" style="margin:0 auto;">SQ</div>
-    <div class="gate-title">Sổ Quỹ Cho Vay</div>
-    <div class="gate-sub" id="pinGateSub">Đăng nhập bằng tài khoản đã được cấp.</div>
-    <div class="field">
-      <input type="email" id="loginEmailInput" placeholder="Email" autocomplete="username" autofocus>
+    <div class="gate-title" id="loginTitle">Sổ Quỹ Cho Vay</div>
+    <div class="gate-sub" id="pinGateSub">Đăng nhập bằng tài khoản của bạn.</div>
+
+    <div id="loginFields">
+      <div class="field">
+        <input type="email" id="loginEmailInput" placeholder="Email" autocomplete="username" autofocus>
+      </div>
+      <div class="field">
+        <input type="password" id="pinInput" placeholder="Mật khẩu" autocomplete="current-password">
+      </div>
     </div>
-    <div class="field">
-      <input type="password" id="pinInput" placeholder="Mật khẩu" autocomplete="current-password">
+
+    <div id="registerFields" class="hidden">
+      <div class="field">
+        <input type="text" id="regNameInput" placeholder="Tên hiển thị của bạn" autocomplete="off">
+      </div>
+      <div class="field">
+        <input type="email" id="regEmailInput" placeholder="Email" autocomplete="username">
+      </div>
+      <div class="field">
+        <input type="password" id="regPasswordInput" placeholder="Đặt mật khẩu (tối thiểu 6 ký tự)" autocomplete="new-password">
+      </div>
     </div>
+
     <div class="err-msg" id="pinErr"></div>
-    <button class="btn btn-primary btn-block" onclick="tryUnlock()">Đăng nhập</button>
+    <button class="btn btn-primary btn-block" id="loginSubmitBtn" onclick="tryUnlock()">Đăng nhập</button>
+
+    <div style="margin-top:14px;display:flex;justify-content:space-between;">
+      <a href="#" onclick="askForgotPassword();return false;" id="forgotPasswordLink" style="font-size:0.82rem;color:var(--ink-soft);text-decoration:underline;">Quên mật khẩu?</a>
+      <a href="#" onclick="toggleAuthMode();return false;" id="toggleAuthLink" style="font-size:0.82rem;color:var(--brass-dark);text-decoration:underline;">Chưa có tài khoản? Đăng ký</a>
+    </div>
+  </div>
+</div>
+
+<!-- ============ CHỜ CẤP QUYỀN ============ -->
+<div id="pendingGate" class="gate-wrap hidden">
+  <div class="gate-card">
+    <div class="seal lg" style="margin:0 auto;">SQ</div>
+    <div class="gate-title">Đang chờ cấp quyền</div>
+    <div class="gate-sub">Tài khoản của bạn đã tạo thành công, nhưng chủ sổ chưa cấp quyền sử dụng. Báo chủ sổ vào <b>Cài đặt → Quản lý người dùng &amp; phân quyền</b> để cấp quyền cho email của bạn.</div>
+    <button class="btn btn-outline btn-block" onclick="location.reload()">Tải lại để kiểm tra lại quyền</button>
     <div style="margin-top:14px;">
-      <a href="#" onclick="askForgotPassword();return false;" style="font-size:0.82rem;color:var(--ink-soft);text-decoration:underline;">Quên mật khẩu?</a>
+      <a href="#" onclick="doLogout();return false;" style="font-size:0.82rem;color:var(--ink-soft);text-decoration:underline;">Đăng xuất</a>
     </div>
   </div>
 </div>
@@ -318,7 +345,7 @@
           <option value="rate_desc">Lãi suất/năm: cao → thấp</option>
         </select>
       </div>
-      <button class="btn btn-brass" onclick="openLoanForm()">+ Thêm khoản vay</button>
+      ${roleAtLeast('staff')?`<button class="btn btn-brass" onclick="openLoanForm()">+ Thêm khoản vay</button>`:''}
     </div>
 
     <table class="ledger">
@@ -350,7 +377,6 @@
    SỔ QUỸ CHO VAY — state & storage
    ============================================================ */
 let settings = null;
-let isMigrationMode = false;
 let loans = [];
 let activityLog = [];
 let cashLedger = [];
@@ -388,8 +414,14 @@ const FS_DOC_MAP = {
   'activity-log': 'nhật ký hoạt động',
   'cash-ledger': 'sổ quỹ'
 };
-let fsDb=null, fsDocFn=null, fsGetDocFn=null, fsSetDocFn=null, fsReady=false;
+/* Collection riêng lưu quyền của từng tài khoản — 1 tài liệu / 1 người, id = uid đăng nhập */
+const ROLES_COLLECTION = 'soquy_roles';
+const ROLE_LABEL = { pending:'Chờ duyệt', viewer:'Xem', staff:'Nhân viên', admin:'Quản trị' };
+const ROLE_RANK = { pending:0, viewer:1, staff:2, admin:3 };
+
+let fsDb=null, fsDocFn=null, fsGetDocFn=null, fsSetDocFn=null, fsDeleteDocFn=null, fsCollectionFn=null, fsGetDocsFn=null, fsReady=false;
 let fbAppMod=null, fbAuthMod=null, fsAuth=null, fbApp=null;
+let currentUserRole = null;
 
 async function initFirebase(){
   const appMod  = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
@@ -399,6 +431,7 @@ async function initFirebase(){
   fbApp = appMod.initializeApp(firebaseConfig);
   fsDb = fsMod.getFirestore(fbApp);
   fsDocFn = fsMod.doc; fsGetDocFn = fsMod.getDoc; fsSetDocFn = fsMod.setDoc;
+  fsDeleteDocFn = fsMod.deleteDoc; fsCollectionFn = fsMod.collection; fsGetDocsFn = fsMod.getDocs;
   fsAuth = authMod.getAuth(fbApp);
   fsReady = true;
 }
@@ -430,6 +463,70 @@ async function authCreateStaffAccount(email, password, displayName){
 }
 async function authSendPasswordReset(email){
   return fbAuthMod.sendPasswordResetEmail(fsAuth, email);
+}
+async function authRegisterSelf(email, password, displayName){
+  const cred = await fbAuthMod.createUserWithEmailAndPassword(fsAuth, email, password);
+  await fbAuthMod.updateProfile(cred.user, { displayName });
+  return cred.user;
+}
+
+/* ---------- Phân quyền (soquy_roles/{uid}) ---------- */
+async function getMyRoleDoc(uid){
+  try{
+    const ref = fsDocFn(fsDb, ROLES_COLLECTION, uid);
+    const snap = await fsGetDocFn(ref);
+    return snap.exists() ? snap.data() : null;
+  }catch(e){ console.error('get role failed', e); return null; }
+}
+async function createRoleDoc(uid, email, displayName, role){
+  const ref = fsDocFn(fsDb, ROLES_COLLECTION, uid);
+  await fsSetDocFn(ref, { email, displayName, role, updatedAt: new Date().toISOString() });
+}
+async function setUserRole(uid, role){
+  const ref = fsDocFn(fsDb, ROLES_COLLECTION, uid);
+  await fsSetDocFn(ref, { role, updatedAt: new Date().toISOString() }, { merge:true });
+}
+async function revokeUserRole(uid){
+  const ref = fsDocFn(fsDb, ROLES_COLLECTION, uid);
+  await fsDeleteDocFn(ref);
+}
+async function listAllRoles(){
+  try{
+    const snaps = await fsGetDocsFn(fsCollectionFn(fsDb, ROLES_COLLECTION));
+    const list = [];
+    snaps.forEach(d=> list.push(Object.assign({uid:d.id}, d.data())));
+    return list;
+  }catch(e){ console.error('list roles failed', e); return []; }
+}
+/* Xác định quyền sau khi đăng nhập thành công. Tự "chữa lành" cho tài khoản chủ sổ đã tạo
+   trước khi có hệ thống phân quyền này (không có hồ sơ quyền nhưng đúng là email chủ sổ gốc). */
+async function ensureRoleAfterLogin(user){
+  let roleDoc = await getMyRoleDoc(user.uid);
+  if(roleDoc) return roleDoc;
+  let role = 'pending';
+  try{
+    const raw = await storageGet('settings', true);
+    const st = raw ? JSON.parse(raw) : null;
+    const isOriginalOwner = st && Array.isArray(st.staffList) && st.staffList[0] && st.staffList[0].email === user.email;
+    if(isOriginalOwner) role = 'admin';
+  }catch(e){ console.error(e); }
+  await createRoleDoc(user.uid, user.email, user.displayName||user.email, role);
+  return { email:user.email, displayName:user.displayName||user.email, role };
+}
+function roleAtLeast(min){
+  return ROLE_RANK[currentUserRole||'pending'] >= ROLE_RANK[min];
+}
+/* Cờ công khai — chỉ để biết app đã từng thiết lập chưa, đọc được cả khi chưa đăng nhập */
+async function checkAppInitialized(){
+  try{
+    const ref = fsDocFn(fsDb, FS_COLLECTION, '_public');
+    const snap = await fsGetDocFn(ref);
+    return snap.exists() && snap.data().appInitialized === true;
+  }catch(e){ console.error('check app initialized failed', e); return false; }
+}
+async function markAppInitialized(){
+  const ref = fsDocFn(fsDb, FS_COLLECTION, '_public');
+  await fsSetDocFn(ref, { appInitialized:true });
 }
 
 /* ---------- storage helpers (giữ nguyên interface cũ, phía dưới đổi sang Firestore) ---------- */
@@ -657,25 +754,13 @@ async function init(){
     document.getElementById('loadingSub').textContent = 'Kiểm tra mạng Internet rồi tải lại trang.';
     return;
   }
-  await loadSettings();
+  const initialized = await checkAppInitialized();
   document.getElementById('loadingGate').classList.add('hidden');
-  if(!settings){
+  if(!initialized){
     document.getElementById('setupGate').classList.remove('hidden');
-    return;
-  }
-  const hasRealAccount = Array.isArray(settings.staffList) && settings.staffList.length>0
-    && typeof settings.staffList[0]==='object' && settings.staffList[0] && settings.staffList[0].email;
-  if(!hasRealAccount){
-    /* Dữ liệu cũ, chưa từng có tài khoản Email/Mật khẩu thật — chuyển sang nâng cấp */
-    isMigrationMode = true;
-    document.getElementById('setupGate').classList.remove('hidden');
-    document.querySelector('#setupGate .gate-sub').textContent = 'Phát hiện dữ liệu cũ — nâng cấp sang đăng nhập bằng Email/Mật khẩu thật. Nhập đúng Mã PIN Quản trị cũ để xác nhận bạn là chủ sổ.';
-    document.getElementById('migrateOldPinField').style.display = '';
-    document.getElementById('setupOwnerName').value = settings.ownerName || '';
     return;
   }
   document.getElementById('pinGate').classList.remove('hidden');
-  document.getElementById('pinGateSub').textContent = `Đăng nhập bằng tài khoản đã được cấp.`;
 }
 
 async function doSetup(){
@@ -687,36 +772,33 @@ async function doSetup(){
   if(!owner || !email || !password || !adminPin){ err.textContent = 'Điền đủ các trường.'; return; }
   if(password.length < 6){ err.textContent = 'Mật khẩu cần ít nhất 6 ký tự.'; return; }
   if(adminPin.length < 4){ err.textContent = 'Mã PIN Quản trị cần ít nhất 4 ký tự.'; return; }
-
-  if(isMigrationMode){
-    const oldPin = document.getElementById('setupOldAdminPin').value.trim();
-    if(oldPin !== settings.adminPin){ err.textContent = 'Sai Mã PIN Quản trị cũ — không xác nhận được bạn là chủ sổ.'; return; }
-  }
-
   err.textContent = 'Đang tạo tài khoản...';
   try{
-    await authCreateFirstAccount(email, password, owner);
-    if(isMigrationMode){
-      /* Giữ nguyên loans/cashLedger/activityLog cũ, chỉ nâng cấp phần tài khoản đăng nhập */
-      settings.ownerName = owner;
-      settings.adminPin = adminPin;
-      settings.staffList = [{email, displayName: owner}];
-      delete settings.pin;
-    }else{
-      settings = {
-        ownerName: owner, adminPin, dueSoonDays: 3,
-        staffList: [{email, displayName: owner}], cashLedgerMigrated: true
-      };
+    let user;
+    try{
+      user = await authCreateFirstAccount(email, password, owner);
+    }catch(e){
+      if(e && e.code==='auth/email-already-in-use'){
+        /* Email này có thể là tài khoản chủ sổ đã tạo trước khi có hệ thống phân quyền — thử đăng nhập lại bằng đúng email/mật khẩu vừa nhập để xác nhận, rồi tự phong Quản trị */
+        const cred = await authSignIn(email, password);
+        user = cred.user;
+      }else{
+        throw e;
+      }
     }
+    await createRoleDoc(user.uid, email, owner, 'admin');
+    await markAppInitialized();
+    let oldDueSoon = 3;
+    try{ const raw = await storageGet('settings', true); if(raw){ const old = JSON.parse(raw); if(old && old.dueSoonDays) oldDueSoon = old.dueSoonDays; } }catch(e){}
+    settings = { ownerName: owner, adminPin, dueSoonDays: oldDueSoon, cashLedgerMigrated: true };
     await saveSettings();
-    if(!isMigrationMode){
-      loans = []; await saveLoans();
-      activityLog = []; await saveActivityLog();
-      cashLedger = []; await saveCashLedger();
-    }
+    if(!(await storageGet('loans', true))){ loans = []; await saveLoans(); }
+    if(!(await storageGet('activity-log', true))){ activityLog = []; await saveActivityLog(); }
+    if(!(await storageGet('cash-ledger', true))){ cashLedger = []; await saveCashLedger(); }
     currentUser = owner;
+    currentUserRole = 'admin';
     document.getElementById('setupGate').classList.add('hidden');
-    enterApp();
+    await enterApp();
   }catch(e){
     console.error(e);
     err.textContent = authErrorMessage(e);
@@ -725,7 +807,7 @@ async function doSetup(){
 
 function authErrorMessage(e){
   const code = e && e.code || '';
-  if(code==='auth/email-already-in-use') return 'Email này đã có tài khoản.';
+  if(code==='auth/email-already-in-use') return 'Email này đã có tài khoản — thử đăng nhập thay vì đăng ký.';
   if(code==='auth/invalid-email') return 'Email không hợp lệ.';
   if(code==='auth/weak-password') return 'Mật khẩu quá yếu (tối thiểu 6 ký tự).';
   if(code==='auth/wrong-password' || code==='auth/invalid-credential') return 'Sai email hoặc mật khẩu.';
@@ -733,6 +815,35 @@ function authErrorMessage(e){
   if(code==='auth/too-many-requests') return 'Sai quá nhiều lần — thử lại sau ít phút.';
   if(code==='auth/network-request-failed') return 'Lỗi mạng — kiểm tra kết nối Internet.';
   return 'Có lỗi xảy ra: ' + (e && e.message ? e.message : String(e));
+}
+
+let authMode = 'login'; // 'login' | 'register'
+function toggleAuthMode(){
+  authMode = authMode==='login' ? 'register' : 'login';
+  const isReg = authMode==='register';
+  document.getElementById('loginFields').classList.toggle('hidden', isReg);
+  document.getElementById('registerFields').classList.toggle('hidden', !isReg);
+  document.getElementById('forgotPasswordLink').classList.toggle('hidden', isReg);
+  document.getElementById('loginTitle').textContent = isReg ? 'Đăng ký tài khoản' : 'Sổ Quỹ Cho Vay';
+  document.getElementById('pinGateSub').textContent = isReg
+    ? 'Tạo tài khoản mới — sau khi đăng ký cần chờ chủ sổ cấp quyền mới xem/thao tác được.'
+    : 'Đăng nhập bằng tài khoản của bạn.';
+  document.getElementById('loginSubmitBtn').textContent = isReg ? 'Đăng ký' : 'Đăng nhập';
+  document.getElementById('loginSubmitBtn').setAttribute('onclick', isReg ? 'doRegister()' : 'tryUnlock()');
+  document.getElementById('toggleAuthLink').textContent = isReg ? 'Đã có tài khoản? Đăng nhập' : 'Chưa có tài khoản? Đăng ký';
+  document.getElementById('pinErr').textContent = '';
+}
+
+async function afterAuthSuccess(user){
+  const roleDoc = await ensureRoleAfterLogin(user);
+  currentUser = user.displayName || user.email;
+  currentUserRole = roleDoc.role;
+  document.getElementById('pinGate').classList.add('hidden');
+  if(currentUserRole==='pending'){
+    document.getElementById('pendingGate').classList.remove('hidden');
+    return;
+  }
+  await enterApp();
 }
 
 async function tryUnlock(){
@@ -743,9 +854,23 @@ async function tryUnlock(){
   err.textContent = 'Đang đăng nhập...';
   try{
     const cred = await authSignIn(email, password);
-    currentUser = cred.user.displayName || cred.user.email;
-    document.getElementById('pinGate').classList.add('hidden');
-    enterApp();
+    await afterAuthSuccess(cred.user);
+  }catch(e){
+    console.error(e);
+    err.textContent = authErrorMessage(e);
+  }
+}
+async function doRegister(){
+  const name = document.getElementById('regNameInput').value.trim();
+  const email = document.getElementById('regEmailInput').value.trim();
+  const password = document.getElementById('regPasswordInput').value;
+  const err = document.getElementById('pinErr');
+  if(!name || !email || !password){ err.textContent = 'Điền đủ Tên, Email, Mật khẩu.'; return; }
+  if(password.length < 6){ err.textContent = 'Mật khẩu cần ít nhất 6 ký tự.'; return; }
+  err.textContent = 'Đang tạo tài khoản...';
+  try{
+    const user = await authRegisterSelf(email, password, name);
+    await afterAuthSuccess(user);
   }catch(e){
     console.error(e);
     err.textContent = authErrorMessage(e);
@@ -768,18 +893,21 @@ async function doLogout(){
 }
 document.addEventListener('keydown', (e)=>{
   if(e.key === 'Enter'){
-    if(!document.getElementById('pinGate').classList.contains('hidden')) tryUnlock();
+    if(!document.getElementById('pinGate').classList.contains('hidden')){
+      if(authMode==='register') doRegister(); else tryUnlock();
+    }
     if(!document.getElementById('setupGate').classList.contains('hidden')) doSetup();
   }
 });
 
 async function enterApp(){
+  await loadSettings();
   await loadLoans();
   await loadActivityLog();
   await loadCashLedger();
   await migrateCashLedgerIfNeeded();
   document.getElementById('ownerNameLabel').textContent = `Sổ của ${settings.ownerName}`;
-  document.getElementById('loggedInAsLabel').textContent = `👤 ${currentUser}`;
+  document.getElementById('loggedInAsLabel').textContent = `👤 ${currentUser} · ${ROLE_LABEL[currentUserRole]}`;
   document.getElementById('appShell').style.display = 'flex';
   renderAll();
 }
@@ -791,6 +919,13 @@ function escapeHtml(s){
 function requireUser(){
   if(!currentUser){
     showToast('Phiên đăng nhập có vấn đề — hãy tải lại trang và đăng nhập lại.');
+    return false;
+  }
+  return true;
+}
+function requireRole(min, msg){
+  if(!roleAtLeast(min)){
+    showToast(msg || `Bạn không có quyền thực hiện thao tác này (cần quyền "${ROLE_LABEL[min]}" trở lên).`);
     return false;
   }
   return true;
@@ -951,6 +1086,7 @@ function showToast(msg){
 /* ---------- Add loan ---------- */
 function openLoanForm(){
   if(!requireUser()) return;
+  if(!requireRole('staff')) return;
   openModal(`
     <h2>Thêm khoản vay</h2>
     <div class="modal-sub">Lãi/kỳ được tính tự động — không nhập tay để tránh sai số liệu.</div>
@@ -1073,11 +1209,11 @@ function openLoanDetail(id){
     </div>`:''}
 
     <div class="modal-close-row" style="flex-wrap:wrap;">
-      ${!loan.tatToan?`<button class="btn btn-ghost" onclick="openRateChangeForm('${loan.id}')">Đổi lãi suất</button>`:''}
-      ${!loan.tatToan?`<button class="btn btn-outline" onclick="openEditLoanForm('${loan.id}')">Sửa thông tin</button>`:''}
-      ${!loan.tatToan?`<button class="btn btn-danger" onclick="askSettleLoan('${loan.id}')">Tất toán</button>`:''}
-      <button class="btn btn-ghost" onclick="askDeleteLoan('${loan.id}')">Xoá</button>
-      ${!loan.tatToan?`<button class="btn btn-primary" onclick="openCollectForm('${loan.id}')">Ghi nhận thu lãi</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-ghost" onclick="openRateChangeForm('${loan.id}')">Đổi lãi suất</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-outline" onclick="openEditLoanForm('${loan.id}')">Sửa thông tin</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-danger" onclick="askSettleLoan('${loan.id}')">Tất toán</button>`:''}
+      ${roleAtLeast('admin')?`<button class="btn btn-ghost" onclick="askDeleteLoan('${loan.id}')">Xoá</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-primary" onclick="openCollectForm('${loan.id}')">Ghi nhận thu lãi</button>`:''}
     </div>
   `);
 }
@@ -1085,6 +1221,7 @@ function openLoanDetail(id){
 /* ---------- Collect interest ---------- */
 function openCollectForm(id){
   if(!requireUser()) return;
+  if(!requireRole('staff')) return;
   const loan = loans.find(l=>l.id===id);
   const laiKy = calcLaiKy(loan);
   openModal(`
@@ -1124,6 +1261,7 @@ async function submitCollect(id){
 
 /* ---------- Edit loan (admin-gated for sensitive fields) ---------- */
 function openEditLoanForm(id){
+  if(!requireRole('admin')) return;
   const loan = loans.find(l=>l.id===id);
   openModal(`
     <h2>Sửa thông tin — ${escapeHtml(loan.tenKhachHang)}</h2>
@@ -1194,6 +1332,7 @@ async function submitEditLoan(id){
 
 /* ---------- Rate change (quick) ---------- */
 function openRateChangeForm(id){
+  if(!requireRole('admin')) return;
   const loan = loans.find(l=>l.id===id);
   openModal(`
     <h2>Đổi lãi suất — ${escapeHtml(loan.tenKhachHang)}</h2>
@@ -1228,6 +1367,7 @@ async function submitRateChange(id){
 
 /* ---------- Settle / Delete ---------- */
 function askSettleLoan(id){
+  if(!requireRole('admin')) return;
   const loan = loans.find(l=>l.id===id);
   openModal(`
     <h2>Tất toán khoản vay</h2>
@@ -1259,6 +1399,7 @@ async function submitSettle(id){
   showToast('Đã tất toán khoản vay.');
 }
 function askDeleteLoan(id){
+  if(!requireRole('admin')) return;
   const loan = loans.find(l=>l.id===id);
   openModal(`
     <h2>Xoá khoản vay?</h2>
@@ -1301,33 +1442,25 @@ function openActivityLog(){
 }
 
 /* ---------- Settings panel ---------- */
-function openSettings(){
-  const staff = settings.staffList||[];
+async function openSettings(){
+  const isAdmin = currentUserRole==='admin';
+  let rolesHtml = '<div class="small-note">Đang tải danh sách...</div>';
   openModal(`
     <h2>Cài đặt</h2>
+    <div class="detail-section" style="margin-top:0;padding-top:0;border-top:none;">
+      <h3>Tài khoản của tôi</h3>
+      <div class="small-note" style="margin-bottom:10px;">Đang đăng nhập: <b>${escapeHtml(currentUser||'')}</b> · Quyền: <b>${escapeHtml(ROLE_LABEL[currentUserRole]||'')}</b></div>
+      <button class="btn btn-outline" onclick="doChangeOwnPassword()">Đổi mật khẩu của tôi (gửi email đặt lại)</button>
+    </div>
+
+    ${isAdmin ? `
     <div class="field"><label>Tên chủ sổ</label><input type="text" id="st_owner" value="${escapeHtml(settings.ownerName)}"></div>
     <div class="field"><label>Ngưỡng "sắp đến hạn" (số ngày)</label><input type="number" id="st_duesoon" value="${settings.dueSoonDays}"></div>
 
     <div class="detail-section">
-      <h3>Tài khoản của tôi</h3>
-      <div class="small-note" style="margin-bottom:10px;">Đang đăng nhập: <b>${escapeHtml(currentUser||'')}</b></div>
-      <button class="btn btn-outline" onclick="doChangeOwnPassword()">Đổi mật khẩu của tôi (gửi email đặt lại)</button>
-    </div>
-
-    <div class="detail-section">
-      <h3>Danh sách tài khoản đã cấp (${staff.length})</h3>
-      <div id="staffChips">${staff.length? staff.map(u=>`<span class="staff-chip">${escapeHtml(u.displayName||u.email)} <small style="color:var(--neutral)">(${escapeHtml(u.email)})</small></span>`).join('') : '<span class="small-note">Chưa có ai ngoài chủ sổ.</span>'}</div>
-      <div class="small-note" style="margin-top:8px;">Đây là danh sách để xem — muốn thu hồi quyền của ai, cần vào Firebase Console (mục Authentication) xoá tài khoản đó, báo tao nếu cần hướng dẫn.</div>
-    </div>
-
-    <div class="detail-section">
-      <h3>Thêm tài khoản mới (chỉ chủ sổ làm được)</h3>
-      <div class="field"><label>Tên hiển thị</label><input type="text" id="st_newname" placeholder="VD: Chị Lan"></div>
-      <div class="field"><label>Email đăng nhập</label><input type="email" id="st_newemail" placeholder="email-cua-ho@gmail.com"></div>
-      <div class="field"><label>Mật khẩu tạm thời (họ nên đổi ngay sau khi đăng nhập)</label><input type="text" id="st_newpass" placeholder="Tối thiểu 6 ký tự"></div>
-      <div class="field"><label>Mã PIN Quản trị (để xác nhận)</label><input type="password" id="st_addpin"></div>
-      <div class="err-msg" id="addStaffErr"></div>
-      <button class="btn btn-outline" onclick="addStaff()">Tạo tài khoản</button>
+      <h3>Quản lý người dùng &amp; phân quyền</h3>
+      <div class="small-note" style="margin-bottom:10px;">Người khác tự đăng ký ở màn hình đăng nhập — mặc định vào trạng thái "Chờ duyệt", không xem/thao tác được gì cho tới khi bạn cấp quyền ở đây.</div>
+      <div id="rolesListWrap">${rolesHtml}</div>
     </div>
 
     <div class="detail-section">
@@ -1352,30 +1485,50 @@ function openSettings(){
       <button class="btn btn-ghost" onclick="closeModal()">Đóng</button>
       <button class="btn btn-brass" onclick="saveSettingsForm()">Lưu cài đặt</button>
     </div>
+    ` : `
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="closeModal()">Đóng</button>
+    </div>
+    `}
   `);
+  if(isAdmin) refreshRolesList();
 }
-async function addStaff(){
-  const name = document.getElementById('st_newname').value.trim();
-  const email = document.getElementById('st_newemail').value.trim();
-  const pass = document.getElementById('st_newpass').value;
-  const pin = document.getElementById('st_addpin').value;
-  const err = document.getElementById('addStaffErr');
-  if(!name || !email || !pass){ err.textContent = 'Điền đủ Tên, Email, Mật khẩu.'; return; }
-  if(pass.length < 6){ err.textContent = 'Mật khẩu cần ít nhất 6 ký tự.'; return; }
-  if(pin !== settings.adminPin){ err.textContent = 'Sai Mã PIN Quản trị.'; return; }
-  err.textContent = 'Đang tạo tài khoản...';
-  try{
-    await authCreateStaffAccount(email, pass, name);
-    settings.staffList = settings.staffList||[];
-    settings.staffList.push({email, displayName:name});
-    await saveSettings();
-    await logActivity('Thêm tài khoản mới', `${name} (${email})`);
-    closeModal(); openSettings();
-    showToast(`Đã tạo tài khoản cho ${name}. Gửi email + mật khẩu tạm này cho họ.`);
-  }catch(e){
-    console.error(e);
-    err.textContent = authErrorMessage(e);
-  }
+
+async function refreshRolesList(){
+  const wrap = document.getElementById('rolesListWrap');
+  if(!wrap) return;
+  const list = await listAllRoles();
+  list.sort((a,b)=> ROLE_RANK[b.role]-ROLE_RANK[a.role] || String(a.displayName||'').localeCompare(String(b.displayName||''),'vi'));
+  if(!list.length){ wrap.innerHTML = '<div class="small-note">Chưa có ai.</div>'; return; }
+  wrap.innerHTML = list.map(u=>{
+    const isSelf = fsAuth && fsAuth.currentUser && fsAuth.currentUser.uid===u.uid;
+    return `
+    <div class="history-row" style="align-items:center;">
+      <span>
+        <b>${escapeHtml(u.displayName||u.email)}</b> ${isSelf?'<span class="small-note">(bạn)</span>':''}
+        <div class="small-note">${escapeHtml(u.email)}</div>
+      </span>
+      <span style="display:flex;gap:8px;align-items:center;">
+        <select onchange="changeUserRole('${u.uid}', this.value)" style="padding:6px 8px;border:1px solid var(--line);border-radius:6px;" ${isSelf?'disabled':''}>
+          ${Object.keys(ROLE_LABEL).map(r=>`<option value="${r}" ${r===u.role?'selected':''}>${ROLE_LABEL[r]}</option>`).join('')}
+        </select>
+        ${!isSelf?`<button class="btn btn-ghost" style="padding:6px 10px;" onclick="doRevokeUser('${u.uid}','${escapeHtml(u.displayName||u.email)}')">Thu hồi</button>`:''}
+      </span>
+    </div>`;
+  }).join('');
+}
+async function changeUserRole(uid, role){
+  await setUserRole(uid, role);
+  await logActivity('Đổi quyền người dùng', `${uid} → ${ROLE_LABEL[role]}`);
+  showToast('Đã cập nhật quyền.');
+  refreshRolesList();
+}
+async function doRevokeUser(uid, name){
+  if(!confirm(`Thu hồi toàn bộ quyền truy cập của "${name}"? Họ sẽ về trạng thái Chờ duyệt.`)) return;
+  await revokeUserRole(uid);
+  await logActivity('Thu hồi quyền người dùng', name);
+  showToast(`Đã thu hồi quyền của ${name}.`);
+  refreshRolesList();
 }
 function doChangeOwnPassword(){
   if(!currentUser){ showToast('Không xác định được tài khoản đang đăng nhập.'); return; }
@@ -1611,8 +1764,8 @@ function openCashLedger(){
       <div class="k">Tổng đã thu hồi gốc</div><div class="v">${fmtMoney(cash.tongThuGoc)}</div>
     </div>
     <div class="modal-close-row" style="justify-content:flex-start;margin-top:14px;">
-      <button class="btn btn-brass" onclick="openCapitalForm('${TX_TYPE.NAP_VON}')">+ Nạp vốn</button>
-      <button class="btn btn-outline" onclick="openCapitalForm('${TX_TYPE.RUT_VON}')">− Rút vốn</button>
+      ${roleAtLeast('staff')?`<button class="btn btn-brass" onclick="openCapitalForm('${TX_TYPE.NAP_VON}')">+ Nạp vốn</button>`:''}
+      ${roleAtLeast('admin')?`<button class="btn btn-outline" onclick="openCapitalForm('${TX_TYPE.RUT_VON}')">− Rút vốn</button>`:''}
     </div>
     <div class="detail-section">
       <h3>Lịch sử giao dịch (${cashLedger.length})</h3>
@@ -1652,6 +1805,7 @@ function renderCashLedgerRows(){
 }
 function openCapitalForm(type){
   const isNap = type===TX_TYPE.NAP_VON;
+  if(!requireRole(isNap?'staff':'admin')) return;
   openModal(`
     <h2>${isNap?'Nạp vốn vào quỹ':'Rút vốn khỏi quỹ'}</h2>
     <div class="modal-sub">Người thực hiện: <b>${escapeHtml(currentUser||'(chưa chọn)')}</b></div>
