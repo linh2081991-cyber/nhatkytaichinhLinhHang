@@ -703,25 +703,73 @@ function calcTongSoNgayVay(loan){
 function calcTongLaiDaThu(loan){
   return (loan.lichSuThuLai||[]).reduce((s,x)=>s+Number(x.soTien||0),0);
 }
+/* Phân bổ Tổng lãi đã thu về đúng từng năm dương lịch — theo mốc kết thúc của TỪNG kỳ
+   (kỳ thứ k kết thúc vào Ngày vay + k×Chu kỳ), không gộp cả cục vào ngày ghi nhận thu.
+   Lý do: 1 lần thu có thể gộp nhiều kỳ (soKy>1, kể cả kỳ tự tính lúc nhập khoản vay cũ),
+   và các kỳ đó có thể trải dài qua nhiều năm khác nhau — phải tách đúng từng kỳ mới ra
+   đúng năm, khớp với cách hạch toán thật tế đang dùng. */
 function calcLaiTheoNam(loan){
   const byYear = {};
-  (loan.lichSuThuLai||[]).forEach(x=>{
-    const y = (x.ngayThu||'').slice(0,4) || '?';
-    byYear[y] = (byYear[y]||0) + Number(x.soTien||0);
+  if(!loan.ngayBatDau || !loan.chuKy) return byYear;
+  const history = (loan.lichSuThuLai||[]).slice().sort((a,b)=>
+    String(a.ngayThu||'').localeCompare(String(b.ngayThu||'')) || String(a.timestamp||'').localeCompare(String(b.timestamp||''))
+  );
+  let kyDaQua = 0; // số kỳ đã được phân bổ dồn tính đến trước lần thu đang xét
+  history.forEach(h=>{
+    const soKy = Number(h.soKy||0);
+    const soTien = Number(h.soTien||0);
+    if(soKy<=0){
+      /* dữ liệu cũ thiếu số kỳ — quy về năm ghi nhận thu, không tách được */
+      const y = (h.ngayThu||'').slice(0,4) || '?';
+      byYear[y] = (byYear[y]||0) + soTien;
+      return;
+    }
+    const tienMoiKy = soTien / soKy;
+    for(let i=0;i<soKy;i++){
+      kyDaQua++;
+      const ngayKetThucKy = addDaysToStr(loan.ngayBatDau, kyDaQua*loan.chuKy);
+      const y = ngayKetThucKy.slice(0,4);
+      byYear[y] = (byYear[y]||0) + tienMoiKy;
+    }
   });
   return byYear;
+}
+/* ---------- Quản lý dòng tiền: phát hiện khách chậm đóng lãi ----------
+   So sánh "số kỳ lẽ ra phải thu tính đến hôm nay" (theo đúng lịch, đúng hình thức
+   đầu/cuối kỳ đã chọn) với "số kỳ thực tế đã thu" — chênh lệch dương = đang bị treo,
+   cần nhắc khách. Đây là số liệu để không bị thất thoát dòng tiền, không chỉ dựa vào
+   mỗi "Ngày đến hạn tiếp" (vốn chỉ báo được kỳ tiếp theo, không báo được đã treo bao nhiêu). */
+function calcSoKyLyThuyetDenHomNay(loan){
+  if(loan.tatToan) return 0;
+  return calcSoKyDaThuBanDau(loan.ngayBatDau, todayStr(), loan.chuKy, loan.hinhThucThuLai);
+}
+function calcTinhTrangDongLai(loan, soKyDaThu){
+  if(loan.tatToan) return { tinhTrang:'DA_TAT_TOAN', soKyCham:0, tienDangTre:0 };
+  const laiKy = calcLaiKy(loan);
+  const soKyLyThuyet = calcSoKyLyThuyetDenHomNay(loan);
+  const soKyCham = Math.max(0, soKyLyThuyet - soKyDaThu);
+  const tienDangTre = soKyCham * laiKy;
+  return {
+    tinhTrang: soKyCham>0 ? 'CHAM_LAI' : 'DUNG_HAN',
+    soKyLyThuyet, soKyCham, tienDangTre
+  };
 }
 function derive(loan){
   const laiKy = calcLaiKy(loan);
   const laiSuatNam = calcLaiSuatNam(loan);
   const trangThai = calcTrangThai(loan, settings.dueSoonDays||3);
   const denHanTiep = calcNgayDenHanTiep(loan);
+  const soKyDaThu = (loan.lichSuThuLai||[]).reduce((s,x)=>s+Number(x.soKy||0),0);
+  const dongLai = calcTinhTrangDongLai(loan, soKyDaThu);
   return {
     laiKy, laiSuatNam, trangThai, denHanTiep,
     tongSoNgayVay: calcTongSoNgayVay(loan),
-    soKyDaThu: (loan.lichSuThuLai||[]).reduce((s,x)=>s+Number(x.soKy||0),0),
+    soKyDaThu,
     tongLaiDaThu: calcTongLaiDaThu(loan),
-    laiTheoNam: calcLaiTheoNam(loan)
+    laiTheoNam: calcLaiTheoNam(loan),
+    tinhTrangDongLai: dongLai.tinhTrang,
+    soKyChamThanhToan: dongLai.soKyCham,
+    tienDangTre: dongLai.tienDangTre
   };
 }
 
@@ -1030,12 +1078,14 @@ function renderDashboard(){
   const dueSoonDays = settings.dueSoonDays||3;
   const sapDenHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.NHAC_NO).length;
   const quaHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN).length;
+  const tongTienDangTre = active.reduce((s,l)=>s+derive(l).tienDangTre,0);
   const cash = calcCashSummary();
 
   const cards = [
     {label:'Số dư quỹ hiện tại', value: fmtMoney(cash.soDu), cls: cash.soDu<0?'danger':'ok', click:'cash'},
     {label:'Tổng dư nợ gốc (đang cho vay)', value: fmtMoney(tongDuNo), cls:''},
     {label:'Tổng lãi đã thu (mọi kỳ)', value: fmtMoney(tongLaiThu), cls:'ok'},
+    {label:'Lãi đang treo (chậm, chưa thu)', value: fmtMoney(tongTienDangTre), cls: tongTienDangTre>0?'danger':'ok'},
     {label:'Sắp đến hạn', value: sapDenHan, cls: sapDenHan? 'warn':''},
     {label:'Quá hạn', value: quaHan, cls: quaHan? 'danger':''}
   ];
@@ -1046,6 +1096,24 @@ function renderDashboard(){
       <div class="value">${c.value}</div>
     </div>
   `).join('');
+}
+
+/* Gộp các khoản vay đang chậm lãi theo TỪNG KHÁCH HÀNG (1 khách có thể vay nhiều mã/nhiều
+   khoản khác nhau, ngày vay khác nhau) — để khi nhắc nợ thì nhắc đúng 1 lần, đủ thông tin
+   toàn bộ các khoản của khách đó, không bỏ sót khoản nào. */
+function computeKhachChamLai(){
+  const active = loans.filter(l=>!l.tatToan);
+  const byKhach = {};
+  active.forEach(l=>{
+    const d = derive(l);
+    if(d.tinhTrangDongLai!=='CHAM_LAI') return;
+    const key = l.tenKhachHang;
+    if(!byKhach[key]) byKhach[key] = { tenKhachHang:key, tongTienDangTre:0, tongSoKyCham:0, khoanVay:[] };
+    byKhach[key].tongTienDangTre += d.tienDangTre;
+    byKhach[key].tongSoKyCham += d.soKyChamThanhToan;
+    byKhach[key].khoanVay.push({ id:l.id, goc:l.tongTienGoc, soKyCham:d.soKyChamThanhToan, tienDangTre:d.tienDangTre });
+  });
+  return Object.values(byKhach).sort((a,b)=>b.tongTienDangTre-a.tongTienDangTre);
 }
 
 function getFilteredSortedLoans(){
@@ -1110,7 +1178,7 @@ function renderLoansList(){
         <td class="num">${fmtPct(d.laiSuatNam)}</td>
         <td>${fmtDateVN(l.ngayDongLaiGanNhat)}</td>
         <td>${fmtDateVN(d.denHanTiep)}</td>
-        <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span></td>
+        <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>${d.tinhTrangDongLai==='CHAM_LAI'?`<span class="stamp danger" style="margin-left:4px;">Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ</span>`:''}</td>
       </tr>`;
   }).join('');
 
@@ -1125,6 +1193,7 @@ function renderLoansList(){
         <div class="meta"><span>Gốc: ${fmtMoney(l.tongTienGoc)}</span><span>${fmtPct(d.laiSuatNam)}/năm</span></div>
         <div class="meta"><span>Lãi/kỳ: ${fmtMoney(d.laiKy)}</span><span>Hạn: ${fmtDateVN(d.denHanTiep)}</span></div>
         <div class="meta"><span>Đóng lãi gần nhất: ${fmtDateVN(l.ngayDongLaiGanNhat)}</span></div>
+        ${d.tinhTrangDongLai==='CHAM_LAI'?`<div class="meta"><span style="color:var(--danger);font-weight:600;">Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ — treo ${fmtMoney(d.tienDangTre)}</span></div>`:''}
       </div>`;
   }).join('');
 }
@@ -1162,6 +1231,7 @@ function computePortfolioStats(){
 
   const quaHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN);
   const sapDenHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.NHAC_NO);
+  const tongTienDangTre = active.reduce((s,l)=>s+derive(l).tienDangTre,0);
 
   let topBorrower = null;
   active.forEach(l=>{
@@ -1170,7 +1240,7 @@ function computePortfolioStats(){
   const topBorrowerShare = (topBorrower && tongDuNo>0) ? Number(topBorrower.tongTienGoc||0)/tongDuNo*100 : 0;
 
   return { active, cash, tongDuNo, tongVonRong, tyLeSuDungVon, laiSuatBinhQuan, uocThuNhapThang,
-    quaHan, sapDenHan, topBorrower, topBorrowerShare, dueSoonDays };
+    quaHan, sapDenHan, topBorrower, topBorrowerShare, dueSoonDays, tongTienDangTre };
 }
 
 function computeForecastBuckets(active){
@@ -1194,6 +1264,9 @@ function generateAIInsights(stats){
   const list = [];
   if(stats.cash.soDu < 0){
     list.push({level:'danger', text:`Số dư quỹ đang âm (${fmtMoney(stats.cash.soDu)}) — cần nạp thêm vốn hoặc thu hồi gấp để đảm bảo thanh khoản.`});
+  }
+  if(stats.tongTienDangTre>0){
+    list.push({level:'danger', text:`Đang treo ${fmtMoney(stats.tongTienDangTre)} tiền lãi chưa thu từ các khách chậm lãi — xem danh sách "Khách cần nhắc lãi" bên trên để đòi ngay, tránh thất thoát dòng tiền.`});
   }
   if(stats.quaHan.length>0){
     const tongQuaHan = stats.quaHan.reduce((s,l)=>s+Number(l.tongTienGoc||0),0);
@@ -1227,6 +1300,7 @@ function renderAITab(){
   const buckets = computeForecastBuckets(stats.active);
   const maxBucket = Math.max(1, ...buckets.map(b=>b.amount));
   const insights = generateAIInsights(stats);
+  const khachCham = computeKhachChamLai();
 
   wrap.innerHTML = `
     <div class="ai-section">
@@ -1239,6 +1313,20 @@ function renderAITab(){
         <div class="k">Tỷ lệ sử dụng vốn</div><div class="v">${fmtPct(stats.tyLeSuDungVon)}</div>
         <div class="k">Số dư quỹ hiện tại</div><div class="v">${fmtMoney(stats.cash.soDu)}</div>
       </div>
+    </div>
+
+    <div class="ai-section">
+      <h3>Khách cần nhắc lãi (${khachCham.length})</h3>
+      ${khachCham.length ? khachCham.map(k=>`
+        <div class="history-row" style="align-items:flex-start;">
+          <span>
+            <b>${escapeHtml(k.tenKhachHang)}</b>
+            <div class="small-note">${k.khoanVay.length>1?`${k.khoanVay.length} khoản vay — `:''}chậm tổng ${fmtInt(k.tongSoKyCham)} kỳ</div>
+          </span>
+          <span class="amt" style="color:var(--danger);">${fmtMoney(k.tongTienDangTre)}</span>
+        </div>`).join('')
+        : '<div class="small-note">Không có khách nào đang chậm lãi — dòng tiền lãi đang được thu đúng hạn.</div>'}
+      <div class="small-note">Gộp theo từng khách hàng — 1 khách có thể đứng tên nhiều khoản vay/mã khác nhau, nhắc 1 lần là đủ cho tất cả các khoản.</div>
     </div>
 
     <div class="ai-section">
@@ -1527,6 +1615,11 @@ function openLoanDetail(id){
       <div class="k">Tổng số ngày vay</div><div class="v">${(Number(d.tongSoNgayVay)||0).toLocaleString('vi-VN')}</div>
       <div class="k">Số kỳ đã thu</div><div class="v">${fmtInt(d.soKyDaThu)}</div>
       <div class="k">Tổng lãi đã thu</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
+      ${!loan.tatToan ? `<div class="k">Tình trạng đóng lãi</div><div class="v" style="color:${d.tinhTrangDongLai==='CHAM_LAI'?'var(--danger)':'var(--success)'};">${
+        d.tinhTrangDongLai==='CHAM_LAI'
+          ? `Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ — đang treo ${fmtMoney(d.tienDangTre)}`
+          : 'Đúng hạn'
+      }</div>` : ''}
       ${Object.entries(d.laiTheoNam).map(([y,v])=>`<div class="k">Lãi đã thu ${y}</div><div class="v">${fmtMoney(v)}</div>`).join('')}
       ${loan.tienLaiNoCu?`<div class="k">Tiền lãi nợ cũ</div><div class="v">${fmtMoney(loan.tienLaiNoCu)}</div>`:''}
     </div>
@@ -2027,6 +2120,8 @@ async function exportExcelReport(){
       ['Quá hạn', String(active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN).length)],
       ['Tổng dư nợ gốc đang cho vay', fmtMoney(active.reduce((s,l)=>s+Number(l.tongTienGoc||0),0))],
       ['Tổng lãi đã thu — mọi kỳ, mọi khoản vay', fmtMoney(loans.reduce((s,l)=>s+calcTongLaiDaThu(l),0))],
+      ['Số khách đang chậm lãi', String(computeKhachChamLai().length)],
+      ['Tổng tiền lãi đang treo (chưa thu, chậm)', fmtMoney(active.reduce((s,l)=>s+derive(l).tienDangTre,0))],
       ['Số dư quỹ hiện tại', fmtMoney(cash.soDu)],
       ['Tổng đã nạp vốn vào quỹ', fmtMoney(cash.tongNapVon)],
       ['Tổng đã rút vốn khỏi quỹ', fmtMoney(cash.tongRutVon)],
@@ -2037,7 +2132,7 @@ async function exportExcelReport(){
       [{width:40}, {width:28, align:'right'}]), 'Tổng quan');
 
     /* Sheet 2: Danh sách khoản vay */
-    const loanHeaders = ['STT','Tên khách hàng','Tổng tiền gốc','Đơn giá lãi (đ/triệu/ngày)','Lãi suất quy năm','Lãi mỗi kỳ','Chu kỳ (ngày)','Ngày vay','Ngày đóng lãi gần nhất','Hình thức thu lãi','Ngày đến hạn tiếp theo','Trạng thái','Tổng số ngày vay','Số kỳ đã thu lãi','Tổng lãi đã thu','Tiền lãi nợ cũ','Ngày tất toán','Ghi chú'];
+    const loanHeaders = ['STT','Tên khách hàng','Tổng tiền gốc','Đơn giá lãi (đ/triệu/ngày)','Lãi suất quy năm','Lãi mỗi kỳ','Chu kỳ (ngày)','Ngày vay','Ngày đóng lãi gần nhất','Hình thức thu lãi','Ngày đến hạn tiếp theo','Trạng thái','Tổng số ngày vay','Số kỳ đã thu lãi','Tổng lãi đã thu','Tình trạng đóng lãi','Số kỳ chậm','Tiền lãi đang treo','Tiền lãi nợ cũ','Ngày tất toán','Ghi chú'];
     const loanRows = loans.map((l,i)=>{
       const d = derive(l);
       return [
@@ -2045,6 +2140,8 @@ async function exportExcelReport(){
         fmtPct(d.laiSuatNam), fmtMoney(d.laiKy), fmtInt(l.chuKy), fmtDateVN(l.ngayBatDau), fmtDateVN(l.ngayDongLaiGanNhat),
         l.hinhThucThuLai==='dau'?'Đầu kỳ':'Cuối kỳ',
         fmtDateVN(d.denHanTiep), STATUS_LABEL[d.trangThai], fmtInt(d.tongSoNgayVay), fmtInt(d.soKyDaThu), fmtMoney(d.tongLaiDaThu),
+        l.tatToan?'Đã tất toán':(d.tinhTrangDongLai==='CHAM_LAI'?'Chậm lãi':'Đúng hạn'),
+        d.soKyChamThanhToan?fmtInt(d.soKyChamThanhToan):'', d.tienDangTre?fmtMoney(d.tienDangTre):'',
         l.tienLaiNoCu?fmtMoney(l.tienLaiNoCu):'', l.tatToan?fmtDateVN(l.ngayTatToan):'', l.ghiChu||''
       ];
     });
@@ -2052,11 +2149,38 @@ async function exportExcelReport(){
       {width:6,align:'center'}, {width:22}, {width:15,align:'right'}, {width:17,align:'right'},
       {width:13,align:'right'}, {width:14,align:'right'}, {width:10,align:'center'}, {width:13,align:'center'},
       {width:15,align:'center'}, {width:13,align:'center'}, {width:15,align:'center'}, {width:14,align:'center'}, {width:12,align:'center'},
-      {width:10,align:'center'}, {width:15,align:'right'}, {width:14,align:'right'}, {width:13,align:'center'},
+      {width:10,align:'center'}, {width:15,align:'right'}, {width:13,align:'center'}, {width:10,align:'center'}, {width:15,align:'right'},
+      {width:14,align:'right'}, {width:13,align:'center'},
       {width:38,wrap:true}
     ]), 'Danh sách khoản vay');
 
-    /* Sheet 3: Lịch sử thu lãi */
+    /* Sheet 3: Khách cần nhắc lãi — gộp theo khách hàng, ưu tiên tiền treo nhiều nhất lên đầu */
+    const khachCham = computeKhachChamLai();
+    const khachChamRows = khachCham.map((k,i)=>[
+      i+1, k.tenKhachHang, k.khoanVay.length, fmtInt(k.tongSoKyCham), fmtMoney(k.tongTienDangTre)
+    ]);
+    XLSX.utils.book_append_sheet(wb, sheetFrom(
+      ['STT','Tên khách hàng','Số khoản vay đang chậm','Tổng số kỳ chậm','Tổng tiền lãi đang treo'], khachChamRows,
+      [{width:6,align:'center'},{width:24},{width:16,align:'center'},{width:14,align:'center'},{width:18,align:'right'}]
+    ), 'Khách cần nhắc lãi');
+
+    /* Sheet 4: Lãi thu theo năm — tách đúng từng năm dương lịch theo thời gian thực của từng kỳ */
+    const yearSet = new Set();
+    loans.forEach(l=> Object.keys(calcLaiTheoNam(l)).forEach(y=>yearSet.add(y)));
+    const years = Array.from(yearSet).sort();
+    const yearHeaders = ['STT','Tên khách hàng', ...years, 'Tổng cộng'];
+    const yearRows = loans.map((l,i)=>{
+      const byYear = calcLaiTheoNam(l);
+      const vals = years.map(y=>byYear[y]?fmtMoney(byYear[y]):'');
+      const tong = years.reduce((s,y)=>s+Number(byYear[y]||0),0);
+      return [i+1, l.tenKhachHang, ...vals, fmtMoney(tong)];
+    });
+    XLSX.utils.book_append_sheet(wb, sheetFrom(
+      yearHeaders, yearRows,
+      [{width:6,align:'center'},{width:22}, ...years.map(()=>({width:16,align:'right'})), {width:16,align:'right'}]
+    ), 'Lãi thu theo năm');
+
+    /* Sheet 5: Lịch sử thu lãi */
     const interestRaw = [];
     loans.forEach(l=>{ (l.lichSuThuLai||[]).forEach(h=>{
       interestRaw.push([l.tenKhachHang, h.ngayThu||'', h.soKy, h.soTien, h.nguoiThucHien||'', h.ghiChu||'']);
@@ -2068,7 +2192,7 @@ async function exportExcelReport(){
       [{width:6,align:'center'},{width:22},{width:13,align:'center'},{width:8,align:'center'},{width:16,align:'right'},{width:16},{width:34,wrap:true}]
     ), 'Lịch sử thu lãi');
 
-    /* Sheet 4: Điều chỉnh lãi suất */
+    /* Sheet 6: Điều chỉnh lãi suất */
     const rateRaw = [];
     loans.forEach(l=>{ (l.lyDoBienDongLai||[]).forEach(r=>{
       rateRaw.push([l.tenKhachHang, r.ngay||'', r.laiSuatCu, r.laiSuatMoi, r.lyDo||'', r.nguoiThucHien||'']);
@@ -2080,7 +2204,7 @@ async function exportExcelReport(){
       [{width:6,align:'center'},{width:22},{width:14,align:'center'},{width:17,align:'right'},{width:17,align:'right'},{width:30,wrap:true},{width:16}]
     ), 'Điều chỉnh lãi suất');
 
-    /* Sheet 5: Sổ quỹ dòng tiền */
+    /* Sheet 7: Sổ quỹ dòng tiền */
     const sortedCash = cashLedger.slice().sort((a,b)=> String(a.ngay+a.time).localeCompare(String(b.ngay+b.time)));
     let running = 0;
     const cashRows = sortedCash.map((t,i)=>{
@@ -2092,7 +2216,7 @@ async function exportExcelReport(){
       [{width:6,align:'center'},{width:13,align:'center'},{width:18},{width:20},{width:17,align:'right'},{width:16,align:'right'},{width:16},{width:30,wrap:true}]
     ), 'Sổ quỹ dòng tiền');
 
-    /* Sheet 6: Nhật ký hoạt động */
+    /* Sheet 8: Nhật ký hoạt động */
     const logRows = activityLog.slice().reverse().map((a,i)=>[
       i+1, new Date(a.time).toLocaleString('vi-VN'), a.user||'', a.action||'', a.detail||''
     ]);
