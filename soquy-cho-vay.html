@@ -771,14 +771,14 @@ function fmtDateVN(dateStr){
   return `${d}/${m}/${y}`;
 }
 function fmtMoney(n){
-  n = Number(n)||0;
+  n = Math.round(Number(n)||0);
   return n.toLocaleString('vi-VN') + 'đ';
 }
 function fmtPct(n){
-  return (Math.round(n*10)/10).toLocaleString('vi-VN') + '%';
+  return (Math.round((Number(n)||0)*10)/10).toLocaleString('vi-VN') + '%';
 }
 function fmtInt(n){
-  return (Number(n)||0).toLocaleString('vi-VN');
+  return Math.round(Number(n)||0).toLocaleString('vi-VN');
 }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
@@ -1768,7 +1768,7 @@ function openLoanDetail(id){
     </div>
     <div class="kv-grid">
       <div class="k">Tổng tiền gốc</div><div class="v">${fmtMoney(loan.tongTienGoc)}</div>
-      <div class="k">Đơn giá lãi</div><div class="v">${(loan.donGiaLai||0).toLocaleString('vi-VN')}đ/tr/ngày</div>
+      <div class="k">Đơn giá lãi</div><div class="v">${fmtInt(loan.donGiaLai)}đ/tr/ngày</div>
       <div class="k">Lãi suất quy năm</div><div class="v">${fmtPct(d.laiSuatNam)}</div>
       <div class="k">Lãi mỗi kỳ</div><div class="v">${fmtMoney(d.laiKy)}</div>
       <div class="k">Chu kỳ</div><div class="v">${fmtInt(loan.chuKy)} ngày</div>
@@ -1776,7 +1776,7 @@ function openLoanDetail(id){
       <div class="k">Ngày đóng lãi gần nhất</div><div class="v">${fmtDateVN(loan.ngayDongLaiGanNhat)}</div>
       <div class="k">Hình thức thu lãi</div><div class="v">${loan.hinhThucThuLai==='dau'?'Đầu kỳ (thu trước)':'Cuối kỳ (thu sau)'}</div>
       <div class="k">Ngày đến hạn tiếp</div><div class="v">${fmtDateVN(d.denHanTiep)}</div>
-      <div class="k">Tổng số ngày vay</div><div class="v">${(Number(d.tongSoNgayVay)||0).toLocaleString('vi-VN')}</div>
+      <div class="k">Tổng số ngày vay</div><div class="v">${fmtInt(d.tongSoNgayVay)}</div>
       <div class="k">Số kỳ đã thu</div><div class="v">${fmtInt(d.soKyDaThu)}</div>
       <div class="k">Tổng lãi đã thu</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
       ${!loan.tatToan ? `<div class="k">Tình trạng đóng lãi</div><div class="v" style="color:${d.tinhTrangDongLai==='CHAM_LAI'?'var(--danger)':'var(--success)'};">${
@@ -2300,7 +2300,7 @@ async function exportExcelReport(){
     const loanRows = loans.map((l,i)=>{
       const d = derive(l);
       return [
-        i+1, l.tenKhachHang, fmtMoney(l.tongTienGoc), (Number(l.donGiaLai)||0).toLocaleString('vi-VN'),
+        i+1, l.tenKhachHang, fmtMoney(l.tongTienGoc), fmtInt(l.donGiaLai),
         fmtPct(d.laiSuatNam), fmtMoney(d.laiKy), fmtInt(l.chuKy), fmtDateVN(l.ngayBatDau), fmtDateVN(l.ngayDongLaiGanNhat),
         l.hinhThucThuLai==='dau'?'Đầu kỳ':'Cuối kỳ',
         fmtDateVN(d.denHanTiep), STATUS_LABEL[d.trangThai], fmtInt(d.tongSoNgayVay), fmtInt(d.soKyDaThu), fmtMoney(d.tongLaiDaThu),
@@ -2770,7 +2770,7 @@ function openExternalLoanDetail(id){
     <div class="modal-sub"><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span></div>
     <div class="kv-grid">
       <div class="k">Tổng tiền vay</div><div class="v">${fmtMoney(loan.tongTienGoc)}</div>
-      <div class="k">Đơn giá lãi</div><div class="v">${(loan.donGiaLai||0).toLocaleString('vi-VN')}đ/tr/ngày</div>
+      <div class="k">Đơn giá lãi</div><div class="v">${fmtInt(loan.donGiaLai)}đ/tr/ngày</div>
       <div class="k">Lãi suất quy năm</div><div class="v">${fmtPct(d.laiSuatNam)}</div>
       <div class="k">Lãi mỗi kỳ</div><div class="v">${fmtMoney(d.laiKy)}</div>
       <div class="k">Chu kỳ</div><div class="v">${fmtInt(loan.chuKy)} ngày</div>
