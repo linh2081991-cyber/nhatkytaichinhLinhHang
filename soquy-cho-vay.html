@@ -415,6 +415,7 @@
 
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
+<datalist id="customerNamesList"></datalist>
 
 <script>
 /* ============================================================
@@ -1064,6 +1065,15 @@ function renderAll(){
   renderLoansList();
   renderAITab();
   renderResultsTab();
+  updateCustomerNamesList();
+}
+/* Gợi ý tên khách hàng khi gõ — lấy danh sách tên duy nhất đã có trong sổ, giúp gõ đúng
+   y hệt tên cũ (1 khách nhiều mã vay khác nhau vẫn nhận diện đúng là cùng 1 người). */
+function updateCustomerNamesList(){
+  const dl = document.getElementById('customerNamesList');
+  if(!dl) return;
+  const names = Array.from(new Set(loans.map(l=>l.tenKhachHang).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'vi'));
+  dl.innerHTML = names.map(n=>`<option value="${escapeHtml(n)}"></option>`).join('');
 }
 
 function applyRoleUI(){
@@ -1476,7 +1486,7 @@ function openLoanForm(){
   openModal(`
     <h2>Thêm khoản vay</h2>
     <div class="modal-sub">Lãi/kỳ được tính tự động — không nhập tay để tránh sai số liệu.</div>
-    <div class="field"><label>Tên khách hàng</label><input type="text" id="f_ten"></div>
+    <div class="field"><label>Tên khách hàng</label><input type="text" id="f_ten" list="customerNamesList" autocomplete="off" placeholder="Gõ để xem gợi ý tên đã có..."></div>
     <div class="two-col">
       <div class="field"><label>Tổng tiền gốc (đ)</label><input type="number" id="f_goc" oninput="previewLaiKy()"></div>
       <div class="field"><label>Đơn giá lãi (đ/triệu/ngày)</label><input type="number" id="f_dongia" oninput="previewLaiKy()" placeholder="VD: 1500"></div>
@@ -1702,7 +1712,7 @@ function openEditLoanForm(id){
   openModal(`
     <h2>Sửa thông tin — ${escapeHtml(loan.tenKhachHang)}</h2>
     <div class="modal-sub">Sửa Gốc / Đơn giá lãi / Chu kỳ / Ngày vay / Ngày đóng lãi gần nhất cần mã PIN Quản trị.</div>
-    <div class="field"><label>Tên khách hàng</label><input type="text" id="e_ten" value="${escapeHtml(loan.tenKhachHang)}"></div>
+    <div class="field"><label>Tên khách hàng</label><input type="text" id="e_ten" list="customerNamesList" autocomplete="off" value="${escapeHtml(loan.tenKhachHang)}"></div>
     <div class="two-col">
       <div class="field"><label>Tổng tiền gốc</label><input type="number" id="e_goc" value="${loan.tongTienGoc}"></div>
       <div class="field"><label>Đơn giá lãi (đ/tr/ngày)</label><input type="number" id="e_dongia" value="${loan.donGiaLai}"></div>
