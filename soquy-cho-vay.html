@@ -355,7 +355,7 @@
     <div class="cards" id="dashboardCards"></div>
 
     <div class="tabs">
-      <button class="tab-btn active" id="mtab-loans" onclick="switchMainTab('loans')">
+      <button class="tab-btn active" id="mtab-finance" onclick="switchMainTab('finance')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <line x1="8" y1="6" x2="20" y2="6"></line>
           <line x1="8" y1="12" x2="20" y2="12"></line>
@@ -364,14 +364,16 @@
           <circle cx="4" cy="12" r="1.3" fill="currentColor" stroke="none"></circle>
           <circle cx="4" cy="18" r="1.3" fill="currentColor" stroke="none"></circle>
         </svg>
-        Danh sách khoản vay
+        Hoạt động tài chính
       </button>
-      <button class="tab-btn" id="mtab-ai" onclick="switchMainTab('ai')">
+      <button class="tab-btn" id="mtab-bds" onclick="switchMainTab('bds')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3z"></path>
-          <path d="M19 14.5l0.7 1.8 1.8 0.7-1.8 0.7-0.7 1.8-0.7-1.8-1.8-0.7 1.8-0.7z"></path>
+          <path d="M3 21h18"></path>
+          <path d="M5 21V9l7-5 7 5v12"></path>
+          <path d="M10 21v-6h4v6"></path>
+          <path d="M10 12h.01M14 12h.01M10 8h.01M14 8h.01"></path>
         </svg>
-        Phân tích AI
+        Đầu tư BDS
       </button>
       <button class="tab-btn" id="mtab-results" onclick="switchMainTab('results')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
@@ -384,56 +386,110 @@
         </svg>
         Kết quả
       </button>
-      <button class="tab-btn" id="mtab-bds" onclick="switchMainTab('bds')">
+      <button class="tab-btn" id="mtab-ai" onclick="switchMainTab('ai')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 21h18"></path>
-          <path d="M5 21V9l7-5 7 5v12"></path>
-          <path d="M10 21v-6h4v6"></path>
-          <path d="M10 12h.01M14 12h.01M10 8h.01M14 8h.01"></path>
+          <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3z"></path>
+          <path d="M19 14.5l0.7 1.8 1.8 0.7-1.8 0.7-0.7 1.8-0.7-1.8-1.8-0.7 1.8-0.7z"></path>
         </svg>
-        Đầu tư BDS
+        Phân tích AI
       </button>
     </div>
 
-    <div id="tabPanel-loans" class="tab-panel">
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <input type="text" id="searchInput" placeholder="Tìm theo tên khách..." oninput="renderLoansList()">
-          <select id="statusFilter" onchange="renderLoansList()">
-            <option value="active">Đang hoạt động (tất cả)</option>
-            <option value="CHUA_DEN_HAN">Chưa đến hạn</option>
-            <option value="NHAC_NO">Nhắc nợ ngay</option>
-            <option value="QUA_HAN">Quá hạn</option>
-            <option value="TAT_TOAN">Đã tất toán</option>
-          </select>
-          <select id="sortBy" onchange="renderLoansList()">
-            <option value="due_asc">Sắp đến hạn trước</option>
-            <option value="principal_desc">Gốc: cao → thấp</option>
-            <option value="name_asc">Tên: A → Z</option>
-            <option value="rate_desc">Lãi suất/năm: cao → thấp</option>
-          </select>
-        </div>
-        <button class="btn btn-brass" id="addLoanBtn" onclick="openLoanForm()">+ Thêm khoản vay</button>
+    <div id="tabPanel-finance" class="tab-panel">
+      <div class="tabs" id="financeSubtabs">
+        <button class="tab-btn active" id="ftab-list" onclick="switchFinanceTab('list')">Danh sách khoản vay</button>
+        <button class="tab-btn" id="ftab-settled" onclick="switchFinanceTab('settled')">Khoản vay đã tất toán</button>
+        <button class="tab-btn" id="ftab-external" onclick="switchFinanceTab('external')">Tiền vay ngoài</button>
       </div>
 
-      <table class="ledger">
-        <thead>
-          <tr>
-            <th>Khách hàng</th>
-            <th style="text-align:right;">Gốc</th>
-            <th style="text-align:right;">Lãi / kỳ</th>
-            <th style="text-align:right;">%/năm</th>
-            <th>Đóng lãi gần nhất</th>
-            <th>Đến hạn tiếp</th>
-            <th>Trạng thái</th>
-          </tr>
-        </thead>
-        <tbody id="ledgerBody"></tbody>
-      </table>
-      <div class="loan-cards" id="loanCardsList"></div>
-      <div id="emptyState" class="empty-state hidden">
-        <div class="big">Chưa có khoản vay nào</div>
-        <div>Bấm "+ Thêm khoản vay" ở trên để bắt đầu ghi sổ.</div>
+      <div id="financePanel-list" class="tab-panel">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <input type="text" id="searchInput" placeholder="Tìm theo tên khách..." oninput="renderLoansList()">
+            <select id="statusFilter" onchange="renderLoansList()">
+              <option value="active">Đang hoạt động (tất cả)</option>
+              <option value="CHUA_DEN_HAN">Chưa đến hạn</option>
+              <option value="NHAC_NO">Nhắc nợ ngay</option>
+              <option value="QUA_HAN">Quá hạn</option>
+              <option value="TAT_TOAN">Đã tất toán</option>
+            </select>
+            <select id="sortBy" onchange="renderLoansList()">
+              <option value="due_asc">Sắp đến hạn trước</option>
+              <option value="principal_desc">Gốc: cao → thấp</option>
+              <option value="name_asc">Tên: A → Z</option>
+              <option value="rate_desc">Lãi suất/năm: cao → thấp</option>
+            </select>
+          </div>
+          <button class="btn btn-brass" id="addLoanBtn" onclick="openLoanForm()">+ Thêm khoản vay</button>
+        </div>
+
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th>Khách hàng</th>
+              <th style="text-align:right;">Gốc</th>
+              <th style="text-align:right;">Lãi / kỳ</th>
+              <th style="text-align:right;">%/năm</th>
+              <th>Đóng lãi gần nhất</th>
+              <th>Đến hạn tiếp</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="ledgerBody"></tbody>
+        </table>
+        <div class="loan-cards" id="loanCardsList"></div>
+        <div id="emptyState" class="empty-state hidden">
+          <div class="big">Chưa có khoản vay nào</div>
+          <div>Bấm "+ Thêm khoản vay" ở trên để bắt đầu ghi sổ.</div>
+        </div>
+      </div>
+
+      <div id="financePanel-settled" class="tab-panel hidden">
+        <div class="small-note" style="margin-bottom:12px;">Toàn bộ khoản vay đã tất toán — số ngày vay, số kỳ, lãi đã thu tính đúng đến ngày tất toán, không tính tiếp đến hôm nay.</div>
+        <div class="cards" id="settledKpis" style="margin-bottom:14px;"></div>
+        <div id="settledTableWrap"></div>
+      </div>
+
+      <div id="financePanel-external" class="tab-panel hidden">
+        <div class="cards" id="extDashboardCards" style="margin-bottom:14px;"></div>
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <input type="text" id="extSearchInput" placeholder="Tìm theo tên người cho vay..." oninput="renderExternalLoansTab()">
+            <select id="extStatusFilter" onchange="renderExternalLoansTab()">
+              <option value="active">Đang vay (tất cả)</option>
+              <option value="CHUA_DEN_HAN">Chưa đến hạn trả lãi</option>
+              <option value="NHAC_NO">Sắp đến hạn trả lãi</option>
+              <option value="QUA_HAN">Quá hạn trả lãi</option>
+              <option value="TAT_TOAN">Đã trả hết</option>
+            </select>
+            <select id="extSortBy" onchange="renderExternalLoansTab()">
+              <option value="due_asc">Sắp đến hạn trả trước</option>
+              <option value="principal_desc">Gốc: cao → thấp</option>
+              <option value="name_asc">Tên: A → Z</option>
+              <option value="rate_desc">Lãi suất/năm: cao → thấp</option>
+            </select>
+          </div>
+          <button class="btn btn-brass" id="addExtLoanBtn" onclick="openExternalLoanForm()">+ Thêm khoản vay ngoài</button>
+        </div>
+        <table class="ledger">
+          <thead>
+            <tr>
+              <th>Người cho vay</th>
+              <th style="text-align:right;">Gốc</th>
+              <th style="text-align:right;">Lãi / kỳ</th>
+              <th style="text-align:right;">%/năm</th>
+              <th>Trả lãi gần nhất</th>
+              <th>Đến hạn trả tiếp</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="extLedgerBody"></tbody>
+        </table>
+        <div class="loan-cards" id="extLoanCardsList"></div>
+        <div id="extEmptyState" class="empty-state hidden">
+          <div class="big">Chưa có khoản vay ngoài nào</div>
+          <div>Bấm "+ Thêm khoản vay ngoài" để ghi nhận tiền quỹ vay từ nguồn bên ngoài (khác với vay ngân hàng đầu tư BDS).</div>
+        </div>
       </div>
     </div>
 
@@ -459,6 +515,7 @@
 <div id="modalRoot"></div>
 <div id="toastRoot"></div>
 <datalist id="customerNamesList"></datalist>
+<datalist id="externalNamesList"></datalist>
 
 <script>
 /* ============================================================
@@ -469,6 +526,7 @@ let loans = [];
 let activityLog = [];
 let cashLedger = [];
 let bdsProjects = [];
+let externalLoans = [];
 let currentUser = null;
 
 const STATUS = { CHUA_DEN_HAN:'CHUA_DEN_HAN', NHAC_NO:'NHAC_NO', QUA_HAN:'QUA_HAN', TAT_TOAN:'TAT_TOAN' };
@@ -477,13 +535,16 @@ const STATUS_LABEL = {
 };
 
 /* Sổ quỹ dòng tiền — mọi khoản tiền ra/vào quỹ chung */
-const TX_TYPE = { NAP_VON:'NAP_VON', RUT_VON:'RUT_VON', GIAI_NGAN:'GIAI_NGAN', THU_LAI:'THU_LAI', THU_GOC:'THU_GOC' };
+const TX_TYPE = { NAP_VON:'NAP_VON', RUT_VON:'RUT_VON', GIAI_NGAN:'GIAI_NGAN', THU_LAI:'THU_LAI', THU_GOC:'THU_GOC',
+  VAY_NGOAI_NHAN:'VAY_NGOAI_NHAN', VAY_NGOAI_TRA_LAI:'VAY_NGOAI_TRA_LAI', VAY_NGOAI_TRA_GOC:'VAY_NGOAI_TRA_GOC' };
 const TX_LABEL = {
   NAP_VON:'Nạp vốn vào quỹ', RUT_VON:'Rút vốn khỏi quỹ',
-  GIAI_NGAN:'Giải ngân cho vay', THU_LAI:'Thu lãi', THU_GOC:'Thu hồi gốc'
+  GIAI_NGAN:'Giải ngân cho vay', THU_LAI:'Thu lãi', THU_GOC:'Thu hồi gốc',
+  VAY_NGOAI_NHAN:'Nhận tiền vay ngoài', VAY_NGOAI_TRA_LAI:'Trả lãi vay ngoài', VAY_NGOAI_TRA_GOC:'Trả gốc vay ngoài'
 };
 /* Chiều tiền: true = tiền vào quỹ (+), false = tiền ra khỏi quỹ (-) */
-const TX_IS_INFLOW = { NAP_VON:true, RUT_VON:false, GIAI_NGAN:false, THU_LAI:true, THU_GOC:true };
+const TX_IS_INFLOW = { NAP_VON:true, RUT_VON:false, GIAI_NGAN:false, THU_LAI:true, THU_GOC:true,
+  VAY_NGOAI_NHAN:true, VAY_NGOAI_TRA_LAI:false, VAY_NGOAI_TRA_GOC:false };
 
 /* ---------- Cloud Firestore: dữ liệu lưu trên máy chủ, dùng chung mọi thiết bị ---------- */
 const firebaseConfig = {
@@ -501,7 +562,8 @@ const FS_DOC_MAP = {
   'loans': 'các khoản vay',
   'activity-log': 'nhật ký hoạt động',
   'cash-ledger': 'sổ quỹ',
-  'bds': 'đầu tư bds'
+  'bds': 'đầu tư bds',
+  'external-loans': 'vay ngoài'
 };
 /* Collection riêng lưu quyền của từng tài khoản — 1 tài liệu / 1 người, id = uid đăng nhập */
 const ROLES_COLLECTION = 'soquy_roles';
@@ -681,6 +743,13 @@ async function loadBds(){
 async function saveBds(){
   await storageSet('bds', JSON.stringify(bdsProjects), true);
 }
+async function loadExternalLoans(){
+  const raw = await storageGet('external-loans', true);
+  externalLoans = raw ? JSON.parse(raw) : [];
+}
+async function saveExternalLoans(){
+  await storageSet('external-loans', JSON.stringify(externalLoans), true);
+}
 
 /* ---------- date & number utils ---------- */
 function todayStr(){
@@ -752,7 +821,8 @@ function calcTrangThai(loan, dueSoonDays){
 }
 function calcTongSoNgayVay(loan){
   if(!loan.ngayBatDau) return 0;
-  return Math.max(0, daysBetween(loan.ngayBatDau, todayStr()));
+  const end = (loan.tatToan && loan.ngayTatToan) ? loan.ngayTatToan : todayStr();
+  return Math.max(0, daysBetween(loan.ngayBatDau, end));
 }
 function calcTongLaiDaThu(loan){
   return (loan.lichSuThuLai||[]).reduce((s,x)=>s+Number(x.soTien||0),0);
@@ -861,8 +931,11 @@ function calcCashSummary(){
   const tongGiaiNgan = -sum(t=>t.type===TX_TYPE.GIAI_NGAN);
   const tongThuLai   = sum(t=>t.type===TX_TYPE.THU_LAI);
   const tongThuGoc   = sum(t=>t.type===TX_TYPE.THU_GOC);
+  const tongVayNgoaiNhan   = sum(t=>t.type===TX_TYPE.VAY_NGOAI_NHAN);
+  const tongVayNgoaiTraLai = -sum(t=>t.type===TX_TYPE.VAY_NGOAI_TRA_LAI);
+  const tongVayNgoaiTraGoc = -sum(t=>t.type===TX_TYPE.VAY_NGOAI_TRA_GOC);
   const soDu = cashLedger.reduce((s,t)=>s+t.amount,0);
-  return { tongNapVon, tongRutVon, tongGiaiNgan, tongThuLai, tongThuGoc, soDu };
+  return { tongNapVon, tongRutVon, tongGiaiNgan, tongThuLai, tongThuGoc, tongVayNgoaiNhan, tongVayNgoaiTraLai, tongVayNgoaiTraGoc, soDu };
 }
 /* Di trú 1 lần: dựng lại sổ quỹ dòng tiền từ dữ liệu khoản vay đã có sẵn
    (áp dụng cho dữ liệu được tạo trước khi có tính năng Sổ quỹ) */
@@ -974,6 +1047,7 @@ async function doSetup(){
     if(!(await storageGet('activity-log', true))){ activityLog = []; await saveActivityLog(); }
     if(!(await storageGet('cash-ledger', true))){ cashLedger = []; await saveCashLedger(); }
     if(!(await storageGet('bds', true))){ bdsProjects = []; await saveBds(); }
+    if(!(await storageGet('external-loans', true))){ externalLoans = []; await saveExternalLoans(); }
     currentUser = owner;
     currentUserRole = 'admin';
     document.getElementById('setupGate').classList.add('hidden');
@@ -1086,6 +1160,7 @@ async function enterApp(){
   await loadCashLedger();
   await migrateCashLedgerIfNeeded();
   await loadBds();
+  await loadExternalLoans();
   document.getElementById('ownerNameLabel').textContent = `Sổ của ${settings.ownerName}`;
   document.getElementById('loggedInAsLabel').textContent = `👤 ${currentUser} · ${ROLE_LABEL[currentUserRole]}`;
   document.getElementById('appShell').style.display = 'flex';
@@ -1117,7 +1192,7 @@ function requireRole(min, msg){
 function renderAll(){
   applyRoleUI();
   renderDashboard();
-  renderLoansList();
+  renderFinanceTab();
   renderAITab();
   renderResultsTab();
   renderBdsTab();
@@ -1137,6 +1212,8 @@ function applyRoleUI(){
   if(btn) btn.style.display = roleAtLeast('staff') ? '' : 'none';
   const bdsBtn = document.getElementById('addBdsBtn');
   if(bdsBtn) bdsBtn.style.display = roleAtLeast('staff') ? '' : 'none';
+  const extBtn = document.getElementById('addExtLoanBtn');
+  if(extBtn) extBtn.style.display = roleAtLeast('staff') ? '' : 'none';
 }
 
 function renderDashboard(){
@@ -1270,7 +1347,7 @@ function renderLoansList(){
    TAB ĐIỀU HƯỚNG CHÍNH — Danh sách / Phân tích AI / Kết quả
    ============================================================ */
 function switchMainTab(name){
-  ['loans','ai','results','bds'].forEach(n=>{
+  ['finance','bds','results','ai'].forEach(n=>{
     const panel = document.getElementById('tabPanel-'+n);
     const btn = document.getElementById('mtab-'+n);
     if(panel) panel.classList.toggle('hidden', n!==name);
@@ -1279,6 +1356,24 @@ function switchMainTab(name){
   if(name==='ai') renderAITab();
   if(name==='results') renderResultsTab();
   if(name==='bds') renderBdsTab();
+  if(name==='finance') renderFinanceTab();
+}
+function switchFinanceTab(name){
+  ['list','settled','external'].forEach(n=>{
+    const panel = document.getElementById('financePanel-'+n);
+    const btn = document.getElementById('ftab-'+n);
+    if(panel) panel.classList.toggle('hidden', n!==name);
+    if(btn) btn.classList.toggle('active', n===name);
+  });
+  if(name==='list') renderLoansList();
+  if(name==='settled') renderSettledLoansTab();
+  if(name==='external') renderExternalLoansTab();
+}
+function renderFinanceTab(){
+  renderLoansList();
+  renderSettledLoansTab();
+  renderExternalLoansTab();
+  updateExternalNamesList();
 }
 
 /* ---------- Phân tích AI: hiện tại & tương lai ---------- */
@@ -2319,6 +2414,9 @@ function openCashLedger(){
       <div class="k">Tổng đã giải ngân (luỹ kế)</div><div class="v">${fmtMoney(cash.tongGiaiNgan)}</div>
       <div class="k">Tổng đã thu lãi</div><div class="v">${fmtMoney(cash.tongThuLai)}</div>
       <div class="k">Tổng đã thu hồi gốc</div><div class="v">${fmtMoney(cash.tongThuGoc)}</div>
+      <div class="k">Tổng đã nhận vay ngoài</div><div class="v">${fmtMoney(cash.tongVayNgoaiNhan)}</div>
+      <div class="k">Tổng đã trả lãi vay ngoài</div><div class="v">${fmtMoney(cash.tongVayNgoaiTraLai)}</div>
+      <div class="k">Tổng đã trả gốc vay ngoài</div><div class="v">${fmtMoney(cash.tongVayNgoaiTraGoc)}</div>
     </div>
     <div class="modal-close-row" style="justify-content:flex-start;margin-top:14px;">
       ${roleAtLeast('staff')?`<button class="btn btn-brass" onclick="openCapitalForm('${TX_TYPE.NAP_VON}')">+ Nạp vốn</button>`:''}
@@ -2333,6 +2431,9 @@ function openCashLedger(){
         <option value="${TX_TYPE.GIAI_NGAN}">Giải ngân</option>
         <option value="${TX_TYPE.THU_LAI}">Thu lãi</option>
         <option value="${TX_TYPE.THU_GOC}">Thu hồi gốc</option>
+        <option value="${TX_TYPE.VAY_NGOAI_NHAN}">Nhận tiền vay ngoài</option>
+        <option value="${TX_TYPE.VAY_NGOAI_TRA_LAI}">Trả lãi vay ngoài</option>
+        <option value="${TX_TYPE.VAY_NGOAI_TRA_GOC}">Trả gốc vay ngoài</option>
       </select>
       <div id="cashLedgerRows" style="max-height:42vh;overflow-y:auto;"></div>
     </div>
@@ -2394,6 +2495,542 @@ async function submitCapitalTx(type){
   await logActivity(type===TX_TYPE.NAP_VON?'Nạp vốn':'Rút vốn', `${fmtMoney(sotien)}${ghichu?' — '+ghichu:''}`);
   closeModal(); renderAll();
   showToast(type===TX_TYPE.NAP_VON?'Đã nạp vốn vào quỹ.':'Đã rút vốn khỏi quỹ.');
+}
+
+/* ============================================================
+   KHOẢN VAY ĐÃ TẤT TOÁN — báo cáo tổng hợp riêng, chỉ đọc
+   Tổng số ngày vay/Số kỳ/Lãi đã thu tính đúng đến Ngày tất toán.
+   ============================================================ */
+function renderSettledLoansTab(){
+  const kpiWrap = document.getElementById('settledKpis');
+  const wrap = document.getElementById('settledTableWrap');
+  if(!wrap) return;
+  const list = loans.filter(l=>l.tatToan).slice().sort((a,b)=>String(b.ngayTatToan||'').localeCompare(String(a.ngayTatToan||'')));
+  if(!list.length){
+    if(kpiWrap) kpiWrap.innerHTML = '';
+    wrap.innerHTML = `<div class="empty-state"><div class="big">Chưa có khoản vay nào tất toán</div><div>Khoản vay sau khi tất toán ở tab "Danh sách khoản vay" sẽ tự động hiện tại đây.</div></div>`;
+    return;
+  }
+  const tongGoc = list.reduce((s,l)=>s+Number(l.tongTienGoc||0),0);
+  const tongLai = list.reduce((s,l)=>s+calcTongLaiDaThu(l),0);
+  if(kpiWrap) kpiWrap.innerHTML = `
+    <div class="card"><div class="label">Số khoản đã tất toán</div><div class="value">${fmtInt(list.length)}</div></div>
+    <div class="card"><div class="label">Tổng gốc đã thu hồi</div><div class="value">${fmtMoney(tongGoc)}</div></div>
+    <div class="card ok"><div class="label">Tổng lãi đã thu</div><div class="value">${fmtMoney(tongLai)}</div></div>
+  `;
+  wrap.innerHTML = `
+    <div style="overflow-x:auto;">
+    <table class="ledger schedule-table">
+      <thead><tr>
+        <th>Khách hàng</th><th style="text-align:right;">Tổng tiền gốc</th><th style="text-align:right;">Lãi/kỳ</th>
+        <th style="text-align:right;">Đơn giá lãi</th><th>Ngày bắt đầu</th><th style="text-align:right;">Chu kỳ</th>
+        <th>Đóng lãi gần nhất</th><th>Ngày tất toán</th><th style="text-align:right;">Tổng số ngày vay</th>
+        <th style="text-align:right;">Số kỳ đã thu</th><th style="text-align:right;">Tổng lãi đã thu</th>
+        <th>Lãi đã thu theo năm</th><th>Ghi chú</th>
+      </tr></thead>
+      <tbody>
+        ${list.map(l=>{
+          const d = derive(l);
+          const byYear = Object.entries(d.laiTheoNam).sort((a,b)=>a[0].localeCompare(b[0])).map(([y,v])=>`${y}: ${fmtMoney(Math.round(v))}`).join(' · ');
+          return `<tr onclick="openLoanDetail('${l.id}')">
+            <td>${escapeHtml(l.tenKhachHang)}</td>
+            <td class="num">${fmtMoney(l.tongTienGoc)}</td>
+            <td class="num">${fmtMoney(d.laiKy)}</td>
+            <td class="num">${fmtInt(l.donGiaLai)}</td>
+            <td>${fmtDateVN(l.ngayBatDau)}</td>
+            <td class="num">${fmtInt(l.chuKy)}</td>
+            <td>${fmtDateVN(l.ngayDongLaiGanNhat)}</td>
+            <td>${fmtDateVN(l.ngayTatToan)}</td>
+            <td class="num">${fmtInt(d.tongSoNgayVay)}</td>
+            <td class="num">${fmtInt(d.soKyDaThu)}</td>
+            <td class="num" style="font-weight:600;color:var(--success);">${fmtMoney(d.tongLaiDaThu)}</td>
+            <td style="font-size:0.8rem;color:var(--ink-soft);">${byYear||'—'}</td>
+            <td style="font-size:0.8rem;">${escapeHtml(l.ghiChu||'')}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+      <tfoot><tr style="font-weight:700;border-top:2px solid var(--ink);">
+        <td>TỔNG</td><td class="num">${fmtMoney(tongGoc)}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+        <td class="num">${fmtMoney(tongLai)}</td><td></td><td></td>
+      </tr></tfoot>
+    </table>
+    </div>
+  `;
+}
+
+/* ============================================================
+   TIỀN VAY NGOÀI — quỹ vay tiền từ nguồn bên ngoài (liability),
+   ngược chiều dòng tiền so với "cho vay ra": nhận tiền = vào quỹ,
+   trả lãi/trả gốc = ra khỏi quỹ. Tái dùng nguyên công thức
+   calcLaiKy/derive/calcTrangThai... của khoản cho vay vì cùng
+   schema dữ liệu (tenKhachHang ở đây = người/đơn vị cho vay).
+   ============================================================ */
+function getFilteredSortedExternalLoans(){
+  const q = document.getElementById('extSearchInput').value.trim().toLowerCase();
+  const statusF = document.getElementById('extStatusFilter').value;
+  const sortBy = document.getElementById('extSortBy').value;
+  const dueSoonDays = settings.dueSoonDays||3;
+  let list = externalLoans.filter(l=>{
+    const st = calcTrangThai(l, dueSoonDays);
+    if(statusF==='active'){ if(st===STATUS.TAT_TOAN) return false; }
+    else if(st !== statusF) return false;
+    if(q && !l.tenKhachHang.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  list.sort((a,b)=>{
+    if(sortBy==='principal_desc') return Number(b.tongTienGoc||0)-Number(a.tongTienGoc||0);
+    if(sortBy==='name_asc') return a.tenKhachHang.localeCompare(b.tenKhachHang,'vi');
+    if(sortBy==='rate_desc') return calcLaiSuatNam(b)-calcLaiSuatNam(a);
+    const da = calcNgayDenHanTiep(a) || '9999-99-99';
+    const db = calcNgayDenHanTiep(b) || '9999-99-99';
+    return da.localeCompare(db);
+  });
+  return list;
+}
+function updateExternalNamesList(){
+  const dl = document.getElementById('externalNamesList');
+  if(!dl) return;
+  const names = Array.from(new Set(externalLoans.map(l=>l.tenKhachHang).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'vi'));
+  dl.innerHTML = names.map(n=>`<option value="${escapeHtml(n)}"></option>`).join('');
+}
+function renderExternalLoansTab(){
+  const kpiWrap = document.getElementById('extDashboardCards');
+  if(kpiWrap){
+    const active = externalLoans.filter(l=>!l.tatToan);
+    const tongDangVay = active.reduce((s,l)=>s+Number(l.tongTienGoc||0),0);
+    const tongLaiDaTra = externalLoans.reduce((s,l)=>s+calcTongLaiDaThu(l),0);
+    const dueSoonDays = settings.dueSoonDays||3;
+    const quaHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN).length;
+    kpiWrap.innerHTML = `
+      <div class="card"><div class="label">Đang gánh (dư nợ vay ngoài)</div><div class="value">${fmtMoney(tongDangVay)}</div></div>
+      <div class="card ${quaHan?'danger':''}"><div class="label">Quá hạn trả lãi</div><div class="value">${fmtInt(quaHan)}</div></div>
+      <div class="card"><div class="label">Tổng lãi đã trả (luỹ kế)</div><div class="value">${fmtMoney(tongLaiDaTra)}</div></div>
+    `;
+  }
+  const list = getFilteredSortedExternalLoans();
+  const tbody = document.getElementById('extLedgerBody');
+  const cardsWrap = document.getElementById('extLoanCardsList');
+  const empty = document.getElementById('extEmptyState');
+  if(!tbody) return;
+  if(externalLoans.length===0){
+    tbody.innerHTML=''; cardsWrap.innerHTML='';
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  if(list.length===0){
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--ink-soft);padding:30px;">Không có khoản vay ngoài phù hợp bộ lọc.</td></tr>`;
+    cardsWrap.innerHTML = `<div class="empty-state">Không có khoản vay ngoài phù hợp bộ lọc.</div>`;
+    return;
+  }
+  tbody.innerHTML = list.map(l=>{
+    const d = derive(l);
+    return `
+      <tr onclick="openExternalLoanDetail('${l.id}')">
+        <td>${escapeHtml(l.tenKhachHang)}</td>
+        <td class="num">${fmtMoney(l.tongTienGoc)}</td>
+        <td class="num">${fmtMoney(d.laiKy)}</td>
+        <td class="num">${fmtPct(d.laiSuatNam)}</td>
+        <td>${fmtDateVN(l.ngayDongLaiGanNhat)}</td>
+        <td>${fmtDateVN(d.denHanTiep)}</td>
+        <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>${d.tinhTrangDongLai==='CHAM_LAI'?`<span class="stamp danger" style="margin-left:4px;">Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ</span>`:''}</td>
+      </tr>`;
+  }).join('');
+  cardsWrap.innerHTML = list.map(l=>{
+    const d = derive(l);
+    return `
+      <div class="loan-card" onclick="openExternalLoanDetail('${l.id}')">
+        <div class="row1">
+          <div class="name">${escapeHtml(l.tenKhachHang)}</div>
+          <span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>
+        </div>
+        <div class="meta"><span>Gốc: ${fmtMoney(l.tongTienGoc)}</span><span>${fmtPct(d.laiSuatNam)}/năm</span></div>
+        <div class="meta"><span>Lãi/kỳ: ${fmtMoney(d.laiKy)}</span><span>Hạn: ${fmtDateVN(d.denHanTiep)}</span></div>
+        <div class="meta"><span>Trả lãi gần nhất: ${fmtDateVN(l.ngayDongLaiGanNhat)}</span></div>
+        ${d.tinhTrangDongLai==='CHAM_LAI'?`<div class="meta"><span style="color:var(--danger);font-weight:600;">Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ — treo ${fmtMoney(d.tienDangTre)}</span></div>`:''}
+      </div>`;
+  }).join('');
+}
+
+/* ---------- Thêm khoản vay ngoài ---------- */
+let xNgayTraLaiTouched = false;
+function openExternalLoanForm(){
+  if(!requireUser()) return;
+  if(!requireRole('staff')) return;
+  xNgayTraLaiTouched = false;
+  openModal(`
+    <h2>Thêm khoản vay ngoài</h2>
+    <div class="modal-sub">Tiền quỹ vay từ nguồn bên ngoài (không phải vay ngân hàng đầu tư BDS) — lãi trả được tính tự động, không nhập tay.</div>
+    <div class="field"><label>Người / đơn vị cho vay</label><input type="text" id="x_ten" list="externalNamesList" autocomplete="off" placeholder="Gõ để xem gợi ý tên đã có..."></div>
+    <div class="two-col">
+      <div class="field"><label>Tổng tiền vay (đ)</label><input type="number" id="x_goc" oninput="previewExtLaiKy()"></div>
+      <div class="field"><label>Đơn giá lãi (đ/triệu/ngày)</label><input type="number" id="x_dongia" oninput="previewExtLaiKy()" placeholder="VD: 1500"></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="x_chuky" value="30" oninput="previewExtLaiKy()"></div>
+      <div class="field"><label>Ngày vay</label><input type="date" id="x_ngaybd" value="${todayStr()}" onchange="onXNgayVayChange()"></div>
+    </div>
+    <div class="field"><label>Ngày trả lãi gần nhất</label><input type="date" id="x_ngaytralai" value="${todayStr()}" oninput="onXNgayTraLaiInput()"></div>
+    <div class="field">
+      <label>Hình thức trả lãi</label>
+      <select id="x_hinhthuc" onchange="previewExtLaiKy()">
+        <option value="dau" selected>Đầu kỳ (trả lãi ngay kỳ 1 lúc nhận tiền)</option>
+        <option value="cuoi">Cuối kỳ (trả sau)</option>
+      </select>
+    </div>
+    <div class="small-note">Mặc định 2 ngày này giống nhau. Nếu khoản vay đã có lịch sử trả lãi trước khi nhập vào sổ, sửa lại đúng ngày trả lãi gần nhất thực tế — hệ thống tự tính số kỳ đã trả.</div>
+    <div class="field">
+      <div class="preview-line" id="extLaiKyPreview">Lãi mỗi kỳ: —</div>
+      <div class="preview-line" id="extSoKyPreview" style="margin-top:6px;">Số kỳ đã trả (tự động): —</div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Tiền lãi nợ cũ (nếu có)</label><input type="number" id="x_noCu" value="0"></div>
+      <div class="field"><label>Ghi chú</label><input type="text" id="x_ghichu"></div>
+    </div>
+    <div class="err-msg" id="extLoanFormErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="closeModal()">Huỷ</button>
+      <button class="btn btn-brass" onclick="submitExternalLoanForm()">Lưu khoản vay ngoài</button>
+    </div>
+  `);
+  previewExtLaiKy();
+}
+function onXNgayVayChange(){
+  if(!xNgayTraLaiTouched){
+    document.getElementById('x_ngaytralai').value = document.getElementById('x_ngaybd').value;
+  }
+  previewExtLaiKy();
+}
+function onXNgayTraLaiInput(){ xNgayTraLaiTouched = true; previewExtLaiKy(); }
+function previewExtLaiKy(){
+  const goc = Number(document.getElementById('x_goc').value)||0;
+  const dongia = Number(document.getElementById('x_dongia').value)||0;
+  const chuky = Number(document.getElementById('x_chuky').value)||0;
+  const laiKy = Math.round(dongia*(goc/1000000)*chuky);
+  const rate = dongia*0.0365;
+  document.getElementById('extLaiKyPreview').textContent = `Lãi mỗi kỳ: ${fmtMoney(laiKy)}  (≈ ${fmtPct(rate)}/năm)`;
+  const ngaybd = document.getElementById('x_ngaybd').value;
+  const ngaytralai = document.getElementById('x_ngaytralai').value;
+  const hinhThuc = document.getElementById('x_hinhthuc').value;
+  const soKy = calcSoKyDaThuBanDau(ngaybd, ngaytralai, chuky, hinhThuc);
+  const tongLai = soKy*laiKy;
+  const el = document.getElementById('extSoKyPreview');
+  if(el){
+    el.textContent = soKy>0
+      ? `Số kỳ đã trả (tự động): ${fmtInt(soKy)} kỳ — Tổng lãi đã trả (tự động): ${fmtMoney(tongLai)}`
+      : `Số kỳ đã trả (tự động): 0 — khoản vay mới, chưa có kỳ nào đến hạn.`;
+  }
+}
+async function submitExternalLoanForm(){
+  const ten = document.getElementById('x_ten').value.trim();
+  const goc = Number(document.getElementById('x_goc').value);
+  const dongia = Number(document.getElementById('x_dongia').value);
+  const chuky = Number(document.getElementById('x_chuky').value);
+  const ngaybd = document.getElementById('x_ngaybd').value;
+  const ngayTraLai = document.getElementById('x_ngaytralai').value || ngaybd;
+  const hinhThuc = document.getElementById('x_hinhthuc').value;
+  const err = document.getElementById('extLoanFormErr');
+  if(!ten || !goc || !chuky || !ngaybd || !ngayTraLai){ err.textContent='Điền đủ Người cho vay, Gốc, Chu kỳ, Ngày vay, Ngày trả lãi gần nhất.'; return; }
+  const ext = {
+    id: uid(), tenKhachHang: ten, hinhThucThuLai: hinhThuc, tongTienGoc: goc, donGiaLai: dongia||0,
+    chuKy: chuky, ngayBatDau: ngaybd, ngayDongLaiGanNhat: ngayTraLai,
+    tienLaiNoCu: Number(document.getElementById('x_noCu').value)||0,
+    ghiChu: document.getElementById('x_ghichu').value.trim(),
+    lichSuThuLai: [], lyDoBienDongLai: [], tatToan:false, ngayTatToan:null,
+    createdAt: new Date().toISOString(), createdBy: currentUser
+  };
+  const laiKy = calcLaiKy(ext);
+  const soKyBanDau = calcSoKyDaThuBanDau(ngaybd, ngayTraLai, chuky, hinhThuc);
+  if(soKyBanDau>0 && laiKy>0){
+    const tienBanDau = soKyBanDau*laiKy;
+    ext.lichSuThuLai.push({ id:uid(), ngayThu:ngayTraLai, soKy:soKyBanDau, soTien:tienBanDau,
+      ghiChu:'Số kỳ đã trả trước khi nhập sổ (tự động tính)', nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  }
+  externalLoans.push(ext);
+  await saveExternalLoans();
+  await addCashTx({type:TX_TYPE.VAY_NGOAI_NHAN, amount:goc, ngay:ngaybd, loanId:ext.id, khachHang:ten, ghiChu:'Nhận tiền vay ngoài'});
+  if(soKyBanDau>0 && laiKy>0){
+    await addCashTx({type:TX_TYPE.VAY_NGOAI_TRA_LAI, amount:soKyBanDau*laiKy, ngay:ngayTraLai, loanId:ext.id, khachHang:ten, ghiChu:`Tự động tính ${soKyBanDau} kỳ đã trả trước khi nhập sổ`});
+  }
+  await logActivity('Thêm khoản vay ngoài', `${ten} — ${fmtMoney(goc)}`);
+  closeModal();
+  renderFinanceTab();
+  showToast('Đã thêm khoản vay ngoài mới.');
+}
+
+/* ---------- Chi tiết khoản vay ngoài ---------- */
+function openExternalLoanDetail(id){
+  const loan = externalLoans.find(l=>l.id===id);
+  if(!loan) return;
+  const d = derive(loan);
+  const history = (loan.lichSuThuLai||[]).slice().sort((a,b)=>b.ngayThu.localeCompare(a.ngayThu));
+  const rateLog = (loan.lyDoBienDongLai||[]).slice().reverse();
+  openModal(`
+    <h2>${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="modal-sub"><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span></div>
+    <div class="kv-grid">
+      <div class="k">Tổng tiền vay</div><div class="v">${fmtMoney(loan.tongTienGoc)}</div>
+      <div class="k">Đơn giá lãi</div><div class="v">${(loan.donGiaLai||0).toLocaleString('vi-VN')}đ/tr/ngày</div>
+      <div class="k">Lãi suất quy năm</div><div class="v">${fmtPct(d.laiSuatNam)}</div>
+      <div class="k">Lãi mỗi kỳ</div><div class="v">${fmtMoney(d.laiKy)}</div>
+      <div class="k">Chu kỳ</div><div class="v">${fmtInt(loan.chuKy)} ngày</div>
+      <div class="k">Ngày vay</div><div class="v">${fmtDateVN(loan.ngayBatDau)}</div>
+      <div class="k">Ngày trả lãi gần nhất</div><div class="v">${fmtDateVN(loan.ngayDongLaiGanNhat)}</div>
+      <div class="k">Hình thức trả lãi</div><div class="v">${loan.hinhThucThuLai==='dau'?'Đầu kỳ (trả trước)':'Cuối kỳ (trả sau)'}</div>
+      <div class="k">Ngày đến hạn trả tiếp</div><div class="v">${fmtDateVN(d.denHanTiep)}</div>
+      <div class="k">Tổng số ngày vay</div><div class="v">${fmtInt(d.tongSoNgayVay)}</div>
+      <div class="k">Số kỳ đã trả</div><div class="v">${fmtInt(d.soKyDaThu)}</div>
+      <div class="k">Tổng lãi đã trả</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
+      ${!loan.tatToan ? `<div class="k">Tình trạng trả lãi</div><div class="v" style="color:${d.tinhTrangDongLai==='CHAM_LAI'?'var(--danger)':'var(--success)'};">${
+        d.tinhTrangDongLai==='CHAM_LAI' ? `Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ — đang treo ${fmtMoney(d.tienDangTre)}` : 'Đúng hạn'
+      }</div>` : ''}
+      ${Object.entries(d.laiTheoNam).map(([y,v])=>`<div class="k">Lãi đã trả ${y}</div><div class="v">${fmtMoney(v)}</div>`).join('')}
+      ${loan.tienLaiNoCu?`<div class="k">Tiền lãi nợ cũ</div><div class="v">${fmtMoney(loan.tienLaiNoCu)}</div>`:''}
+    </div>
+    ${loan.ghiChu?`<div class="small-note">Ghi chú: ${escapeHtml(loan.ghiChu)}</div>`:''}
+
+    <div class="detail-section">
+      <h3>Lịch sử trả lãi (${history.length})</h3>
+      ${history.length? history.map(h=>`
+        <div class="history-row">
+          <span>${fmtDateVN(h.ngayThu)} · ${h.soKy} kỳ · ${escapeHtml(h.nguoiThucHien||'—')}${h.ghiChu?` · <span class="small-note">${escapeHtml(h.ghiChu)}</span>`:''}</span>
+          <span class="amt" style="color:var(--danger);">${fmtMoney(h.soTien)}</span>
+        </div>`).join('') : '<div class="small-note">Chưa ghi nhận lần trả lãi nào.</div>'}
+    </div>
+
+    ${rateLog.length?`
+    <div class="detail-section">
+      <h3>Lịch sử điều chỉnh lãi suất</h3>
+      ${rateLog.map(r=>`
+        <div class="history-row">
+          <span>${fmtDateVN(r.ngay)} · ${escapeHtml(r.nguoiThucHien||'—')} · ${escapeHtml(r.lyDo||'')}</span>
+          <span class="mono">${fmtInt(r.laiSuatCu)}→${fmtInt(r.laiSuatMoi)} đ/tr/ng</span>
+        </div>`).join('')}
+    </div>`:''}
+
+    <div class="modal-close-row" style="flex-wrap:wrap;">
+      ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-ghost" onclick="openRateChangeExternalForm('${loan.id}')">Đổi lãi suất</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-outline" onclick="openEditExternalLoanForm('${loan.id}')">Sửa thông tin</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-danger" onclick="askSettleExternalLoan('${loan.id}')">Tất toán (trả hết)</button>`:''}
+      ${roleAtLeast('admin')?`<button class="btn btn-ghost" onclick="askDeleteExternalLoan('${loan.id}')">Xoá</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-primary" onclick="openExtCollectForm('${loan.id}')">Ghi nhận trả lãi</button>`:''}
+    </div>
+  `);
+}
+
+/* ---------- Ghi nhận trả lãi vay ngoài ---------- */
+function openExtCollectForm(id){
+  if(!requireUser()) return;
+  if(!requireRole('staff')) return;
+  const loan = externalLoans.find(l=>l.id===id);
+  const laiKy = calcLaiKy(loan);
+  openModal(`
+    <h2>Ghi nhận trả lãi — ${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="modal-sub">Người thực hiện: <b>${escapeHtml(currentUser)}</b></div>
+    <div class="two-col">
+      <div class="field"><label>Ngày trả</label><input type="date" id="xc_ngay" value="${todayStr()}"></div>
+      <div class="field"><label>Số kỳ</label><input type="number" id="xc_soky" value="1" min="1" oninput="previewExtCollectAmt(${laiKy})"></div>
+    </div>
+    <div class="field"><label>Số tiền trả (tự tính, có thể sửa)</label><input type="number" id="xc_sotien" value="${laiKy}"></div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="xc_ghichu"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openExternalLoanDetail('${id}')">Quay lại</button>
+      <button class="btn btn-primary" onclick="submitExtCollect('${id}')">Lưu</button>
+    </div>
+  `);
+}
+function previewExtCollectAmt(laiKy){
+  const soky = Number(document.getElementById('xc_soky').value)||1;
+  document.getElementById('xc_sotien').value = laiKy*soky;
+}
+async function submitExtCollect(id){
+  const loan = externalLoans.find(l=>l.id===id);
+  const ngay = document.getElementById('xc_ngay').value;
+  const soky = Number(document.getElementById('xc_soky').value)||1;
+  const sotien = Number(document.getElementById('xc_sotien').value)||0;
+  const ghichu = document.getElementById('xc_ghichu').value.trim();
+  if(!ngay || !sotien){ showToast('Điền đủ ngày trả và số tiền.'); return; }
+  loan.lichSuThuLai.push({ id:uid(), ngayThu:ngay, soKy:soky, soTien:sotien, ghiChu:ghichu, nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  loan.ngayDongLaiGanNhat = ngay;
+  await saveExternalLoans();
+  await addCashTx({type:TX_TYPE.VAY_NGOAI_TRA_LAI, amount:sotien, ngay:ngay, loanId:loan.id, khachHang:loan.tenKhachHang, ghiChu:ghichu||`Trả lãi ${soky} kỳ`});
+  await logActivity('Ghi nhận trả lãi vay ngoài', `${loan.tenKhachHang} — ${fmtMoney(sotien)} (${soky} kỳ)`);
+  closeModal(); renderFinanceTab();
+  showToast('Đã ghi nhận trả lãi.');
+}
+
+/* ---------- Sửa / đổi lãi suất khoản vay ngoài ---------- */
+function openEditExternalLoanForm(id){
+  if(!requireRole('admin')) return;
+  const loan = externalLoans.find(l=>l.id===id);
+  openModal(`
+    <h2>Sửa thông tin — ${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="modal-sub">Sửa Gốc / Đơn giá lãi / Chu kỳ / Ngày vay / Ngày trả lãi gần nhất cần mã PIN Quản trị.</div>
+    <div class="field"><label>Người / đơn vị cho vay</label><input type="text" id="xe_ten" list="externalNamesList" autocomplete="off" value="${escapeHtml(loan.tenKhachHang)}"></div>
+    <div class="two-col">
+      <div class="field"><label>Tổng tiền vay</label><input type="number" id="xe_goc" value="${loan.tongTienGoc}"></div>
+      <div class="field"><label>Đơn giá lãi (đ/tr/ngày)</label><input type="number" id="xe_dongia" value="${loan.donGiaLai}"></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="xe_chuky" value="${loan.chuKy}"></div>
+      <div class="field"><label>Ngày vay</label><input type="date" id="xe_ngaybd" value="${loan.ngayBatDau}"></div>
+    </div>
+    <div class="field"><label>Ngày trả lãi gần nhất</label><input type="date" id="xe_ngaytralai" value="${loan.ngayDongLaiGanNhat||loan.ngayBatDau}"></div>
+    <div class="field">
+      <label>Hình thức trả lãi</label>
+      <select id="xe_hinhthuc">
+        <option value="cuoi" ${loan.hinhThucThuLai!=='dau'?'selected':''}>Cuối kỳ (trả sau)</option>
+        <option value="dau" ${loan.hinhThucThuLai==='dau'?'selected':''}>Đầu kỳ (trả ngay kỳ 1 lúc nhận tiền)</option>
+      </select>
+    </div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="xe_ghichu" value="${escapeHtml(loan.ghiChu||'')}"></div>
+    <div class="field"><label>Mã PIN Quản trị (chỉ cần nếu đổi Gốc/Đơn giá/Chu kỳ/Ngày vay/Ngày trả lãi gần nhất)</label><input type="password" id="xe_adminpin"></div>
+    <div class="err-msg" id="extEditErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openExternalLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-brass" onclick="submitEditExternalLoan('${id}')">Lưu thay đổi</button>
+    </div>
+  `);
+}
+async function submitEditExternalLoan(id){
+  const loan = externalLoans.find(l=>l.id===id);
+  const newTen = document.getElementById('xe_ten').value.trim();
+  const newGoc = Number(document.getElementById('xe_goc').value);
+  const newDongia = Number(document.getElementById('xe_dongia').value);
+  const newChuky = Number(document.getElementById('xe_chuky').value);
+  const newNgaybd = document.getElementById('xe_ngaybd').value;
+  const newNgayTraLai = document.getElementById('xe_ngaytralai').value;
+  const newHinhThuc = document.getElementById('xe_hinhthuc').value;
+  const newGhichu = document.getElementById('xe_ghichu').value.trim();
+  const pin = document.getElementById('xe_adminpin').value;
+  const err = document.getElementById('extEditErr');
+  const sensitiveChanged = (newGoc!==loan.tongTienGoc || newDongia!==loan.donGiaLai || newChuky!==loan.chuKy || newNgaybd!==loan.ngayBatDau || newNgayTraLai!==(loan.ngayDongLaiGanNhat||loan.ngayBatDau));
+  if(sensitiveChanged && pin !== settings.adminPin){
+    err.textContent = 'Sai mã PIN Quản trị — không thể đổi Gốc/Đơn giá/Chu kỳ/Ngày vay/Ngày trả lãi gần nhất.';
+    return;
+  }
+  if(!requireUser()) return;
+  if(newDongia !== loan.donGiaLai){
+    loan.lyDoBienDongLai = loan.lyDoBienDongLai||[];
+    loan.lyDoBienDongLai.push({ngay:todayStr(), laiSuatCu:loan.donGiaLai, laiSuatMoi:newDongia, lyDo:'Sửa qua form chỉnh sửa', nguoiThucHien:currentUser});
+  }
+  const gocChanged = newGoc !== loan.tongTienGoc;
+  const ngayBdChanged = newNgaybd !== loan.ngayBatDau;
+  loan.tenKhachHang = newTen;
+  loan.tongTienGoc = newGoc;
+  loan.donGiaLai = newDongia;
+  loan.chuKy = newChuky;
+  loan.ngayBatDau = newNgaybd;
+  loan.ngayDongLaiGanNhat = newNgayTraLai || newNgaybd;
+  loan.hinhThucThuLai = newHinhThuc;
+  loan.ghiChu = newGhichu;
+  await saveExternalLoans();
+  if(gocChanged || ngayBdChanged){
+    const nhanTx = cashLedger.find(t=>t.loanId===loan.id && t.type===TX_TYPE.VAY_NGOAI_NHAN);
+    if(nhanTx){
+      nhanTx.amount = Math.abs(newGoc);
+      nhanTx.ngay = newNgaybd || nhanTx.ngay;
+      nhanTx.khachHang = newTen;
+      nhanTx.ghiChu = 'Điều chỉnh qua sửa thông tin khoản vay ngoài (PIN Quản trị)';
+      await saveCashLedger();
+    }
+  }
+  await logActivity('Sửa khoản vay ngoài', newTen);
+  closeModal(); renderFinanceTab();
+  showToast('Đã lưu thay đổi.');
+}
+function openRateChangeExternalForm(id){
+  if(!requireRole('admin')) return;
+  const loan = externalLoans.find(l=>l.id===id);
+  openModal(`
+    <h2>Đổi lãi suất — ${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="field"><label>Đơn giá lãi hiện tại</label><input type="text" value="${loan.donGiaLai} đ/tr/ngày" disabled></div>
+    <div class="field"><label>Đơn giá lãi mới (đ/tr/ngày)</label><input type="number" id="xr_new"></div>
+    <div class="field"><label>Lý do biến động lãi</label><input type="text" id="xr_lydo" placeholder="VD: chủ nợ điều chỉnh lãi..."></div>
+    <div class="field"><label>Mã PIN Quản trị</label><input type="password" id="xr_pin"></div>
+    <div class="err-msg" id="extRateErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openExternalLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-brass" onclick="submitRateChangeExternal('${id}')">Lưu</button>
+    </div>
+  `);
+}
+async function submitRateChangeExternal(id){
+  const loan = externalLoans.find(l=>l.id===id);
+  const newRate = Number(document.getElementById('xr_new').value);
+  const lydo = document.getElementById('xr_lydo').value.trim();
+  const pin = document.getElementById('xr_pin').value;
+  const err = document.getElementById('extRateErr');
+  if(pin !== settings.adminPin){ err.textContent='Sai mã PIN Quản trị.'; return; }
+  if(!newRate){ err.textContent='Nhập đơn giá lãi mới.'; return; }
+  if(!requireUser()) return;
+  loan.lyDoBienDongLai = loan.lyDoBienDongLai||[];
+  loan.lyDoBienDongLai.push({ngay:todayStr(), laiSuatCu:loan.donGiaLai, laiSuatMoi:newRate, lyDo:lydo, nguoiThucHien:currentUser});
+  loan.donGiaLai = newRate;
+  await saveExternalLoans();
+  await logActivity('Đổi lãi suất vay ngoài', `${loan.tenKhachHang} → ${fmtInt(newRate)}đ/tr/ngày (${lydo})`);
+  closeModal(); renderFinanceTab();
+  showToast('Đã cập nhật lãi suất.');
+}
+
+/* ---------- Tất toán / Xoá khoản vay ngoài ---------- */
+function askSettleExternalLoan(id){
+  if(!requireRole('admin')) return;
+  const loan = externalLoans.find(l=>l.id===id);
+  openModal(`
+    <h2>Tất toán khoản vay ngoài</h2>
+    <div class="modal-sub">${escapeHtml(loan.tenKhachHang)} — xác nhận đã trả hết gốc + lãi.</div>
+    <div class="two-col">
+      <div class="field"><label>Ngày trả hết</label><input type="date" id="xs_ngay" value="${todayStr()}"></div>
+      <div class="field"><label>Số tiền gốc thực trả</label><input type="number" id="xs_gocthu" value="${loan.tongTienGoc}"></div>
+    </div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="xs_ghichu"></div>
+    <div class="small-note">Số tiền gốc thực trả sẽ được ghi vào Sổ quỹ như một khoản tiền ra (Trả gốc vay ngoài).</div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openExternalLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-danger" onclick="submitSettleExternal('${id}')">Xác nhận tất toán</button>
+    </div>
+  `);
+}
+async function submitSettleExternal(id){
+  if(!requireUser()) return;
+  const loan = externalLoans.find(l=>l.id===id);
+  const ngay = document.getElementById('xs_ngay').value || todayStr();
+  const gocThu = Number(document.getElementById('xs_gocthu').value)||0;
+  const ghichu = document.getElementById('xs_ghichu').value.trim();
+  loan.tatToan = true;
+  loan.ngayTatToan = ngay;
+  await saveExternalLoans();
+  await addCashTx({type:TX_TYPE.VAY_NGOAI_TRA_GOC, amount:gocThu, ngay:ngay, loanId:loan.id, khachHang:loan.tenKhachHang, ghiChu:ghichu||'Trả hết gốc khi tất toán'});
+  await logActivity('Tất toán khoản vay ngoài', `${loan.tenKhachHang} — trả về ${fmtMoney(gocThu)}`);
+  closeModal(); renderFinanceTab();
+  showToast('Đã tất toán khoản vay ngoài.');
+}
+function askDeleteExternalLoan(id){
+  if(!requireRole('admin')) return;
+  const loan = externalLoans.find(l=>l.id===id);
+  openModal(`
+    <h2>Xoá khoản vay ngoài?</h2>
+    <div class="modal-sub">${escapeHtml(loan.tenKhachHang)} — thao tác không thể hoàn tác. Cần mã PIN Quản trị.</div>
+    <div class="field"><label>Mã PIN Quản trị</label><input type="password" id="xd_pin"></div>
+    <div class="err-msg" id="extDelErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openExternalLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-danger" onclick="submitDeleteExternal('${id}')">Xoá vĩnh viễn</button>
+    </div>
+  `);
+}
+async function submitDeleteExternal(id){
+  const pin = document.getElementById('xd_pin').value;
+  if(pin !== settings.adminPin){ document.getElementById('extDelErr').textContent='Sai mã PIN Quản trị.'; return; }
+  if(!requireUser()) return;
+  const loan = externalLoans.find(l=>l.id===id);
+  externalLoans = externalLoans.filter(l=>l.id!==id);
+  await saveExternalLoans();
+  await removeCashTxForLoan(id);
+  await logActivity('Xoá khoản vay ngoài', `${loan?loan.tenKhachHang:id} — đã gỡ các giao dịch liên quan khỏi sổ quỹ`);
+  closeModal(); renderFinanceTab();
+  showToast('Đã xoá khoản vay ngoài.');
 }
 
 /* ============================================================
