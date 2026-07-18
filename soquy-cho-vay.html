@@ -221,6 +221,26 @@
     position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);
     padding:11px 20px;border-radius:8px;font-size:0.88rem;z-index:200;box-shadow:0 6px 18px rgba(0,0,0,.25);
   }
+
+  /* ---------- Đầu tư BDS ---------- */
+  .modal-card.wide{max-width:1120px;}
+  .bds-cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+  .bds-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;cursor:pointer;transition:box-shadow .15s ease;}
+  .bds-card:hover{box-shadow:0 4px 14px rgba(22,35,63,0.1);}
+  .bds-card .row1{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;}
+  .bds-card .name{font-weight:700;font-family:var(--font-display);font-size:1.08rem;color:var(--heading);}
+  .bds-card .meta{font-size:0.8rem;color:var(--ink-soft);margin-bottom:12px;}
+  .kpi-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;padding-top:10px;border-top:1px dashed var(--line);}
+  .kpi-mini-grid .k{color:var(--neutral);font-size:0.66rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+  .kpi-mini-grid .v{font-family:var(--font-mono);font-weight:600;font-size:0.92rem;}
+  .kpi-mini-grid .v.neg{color:var(--danger);}
+  .kpi-mini-grid .v.pos{color:var(--success);}
+  .mini-input{width:100%;min-width:88px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:0.8rem;font-family:var(--font-mono);background:var(--paper);color:var(--ink);}
+  .mini-input:focus{outline:2px solid var(--brass);outline-offset:1px;}
+  .mini-input.num{text-align:right;}
+  table.schedule-table th,table.schedule-table td{white-space:nowrap;}
+  table.schedule-table td{padding:8px 10px;}
+  .rate-input{background:var(--brass-wash);border-color:var(--brass);font-weight:600;}
 </style>
 </head>
 <body>
@@ -364,6 +384,15 @@
         </svg>
         Kết quả
       </button>
+      <button class="tab-btn" id="mtab-bds" onclick="switchMainTab('bds')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 21h18"></path>
+          <path d="M5 21V9l7-5 7 5v12"></path>
+          <path d="M10 21v-6h4v6"></path>
+          <path d="M10 12h.01M14 12h.01M10 8h.01M14 8h.01"></path>
+        </svg>
+        Đầu tư BDS
+      </button>
     </div>
 
     <div id="tabPanel-loans" class="tab-panel">
@@ -410,6 +439,20 @@
 
     <div id="tabPanel-ai" class="tab-panel hidden"></div>
     <div id="tabPanel-results" class="tab-panel hidden"></div>
+
+    <div id="tabPanel-bds" class="tab-panel hidden">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <div class="small-note" style="margin:0;">Vốn vay ngân hàng để đầu tư công trình — lãi vay tính tự động theo dư nợ thực tế, số ngày thực tế, lãi suất từng tháng.</div>
+        </div>
+        <button class="btn btn-brass" id="addBdsBtn" onclick="openBdsForm()">+ Thêm dự án BDS</button>
+      </div>
+      <div class="bds-cards-grid" id="bdsCardsList"></div>
+      <div id="bdsEmptyState" class="empty-state hidden">
+        <div class="big">Chưa có dự án đầu tư BDS nào</div>
+        <div>Bấm "+ Thêm dự án BDS" ở trên để bắt đầu ghi nhận vốn vay, công trình và dòng tiền.</div>
+      </div>
+    </div>
   </main>
 </div>
 
@@ -425,6 +468,7 @@ let settings = null;
 let loans = [];
 let activityLog = [];
 let cashLedger = [];
+let bdsProjects = [];
 let currentUser = null;
 
 const STATUS = { CHUA_DEN_HAN:'CHUA_DEN_HAN', NHAC_NO:'NHAC_NO', QUA_HAN:'QUA_HAN', TAT_TOAN:'TAT_TOAN' };
@@ -456,7 +500,8 @@ const FS_DOC_MAP = {
   'settings': 'cài đặt',
   'loans': 'các khoản vay',
   'activity-log': 'nhật ký hoạt động',
-  'cash-ledger': 'sổ quỹ'
+  'cash-ledger': 'sổ quỹ',
+  'bds': 'đầu tư bds'
 };
 /* Collection riêng lưu quyền của từng tài khoản — 1 tài liệu / 1 người, id = uid đăng nhập */
 const ROLES_COLLECTION = 'soquy_roles';
@@ -627,6 +672,14 @@ async function loadCashLedger(){
 }
 async function saveCashLedger(){
   await storageSet('cash-ledger', JSON.stringify(cashLedger), true);
+}
+async function loadBds(){
+  const raw = await storageGet('bds', true);
+  bdsProjects = raw ? JSON.parse(raw) : [];
+  bdsProjects.forEach(p=>bdsRecalcSchedule(p));
+}
+async function saveBds(){
+  await storageSet('bds', JSON.stringify(bdsProjects), true);
 }
 
 /* ---------- date & number utils ---------- */
@@ -920,6 +973,7 @@ async function doSetup(){
     if(!(await storageGet('loans', true))){ loans = []; await saveLoans(); }
     if(!(await storageGet('activity-log', true))){ activityLog = []; await saveActivityLog(); }
     if(!(await storageGet('cash-ledger', true))){ cashLedger = []; await saveCashLedger(); }
+    if(!(await storageGet('bds', true))){ bdsProjects = []; await saveBds(); }
     currentUser = owner;
     currentUserRole = 'admin';
     document.getElementById('setupGate').classList.add('hidden');
@@ -1031,6 +1085,7 @@ async function enterApp(){
   await loadActivityLog();
   await loadCashLedger();
   await migrateCashLedgerIfNeeded();
+  await loadBds();
   document.getElementById('ownerNameLabel').textContent = `Sổ của ${settings.ownerName}`;
   document.getElementById('loggedInAsLabel').textContent = `👤 ${currentUser} · ${ROLE_LABEL[currentUserRole]}`;
   document.getElementById('appShell').style.display = 'flex';
@@ -1065,6 +1120,7 @@ function renderAll(){
   renderLoansList();
   renderAITab();
   renderResultsTab();
+  renderBdsTab();
   updateCustomerNamesList();
 }
 /* Gợi ý tên khách hàng khi gõ — lấy danh sách tên duy nhất đã có trong sổ, giúp gõ đúng
@@ -1079,6 +1135,8 @@ function updateCustomerNamesList(){
 function applyRoleUI(){
   const btn = document.getElementById('addLoanBtn');
   if(btn) btn.style.display = roleAtLeast('staff') ? '' : 'none';
+  const bdsBtn = document.getElementById('addBdsBtn');
+  if(bdsBtn) bdsBtn.style.display = roleAtLeast('staff') ? '' : 'none';
 }
 
 function renderDashboard(){
@@ -1212,7 +1270,7 @@ function renderLoansList(){
    TAB ĐIỀU HƯỚNG CHÍNH — Danh sách / Phân tích AI / Kết quả
    ============================================================ */
 function switchMainTab(name){
-  ['loans','ai','results'].forEach(n=>{
+  ['loans','ai','results','bds'].forEach(n=>{
     const panel = document.getElementById('tabPanel-'+n);
     const btn = document.getElementById('mtab-'+n);
     if(panel) panel.classList.toggle('hidden', n!==name);
@@ -1220,6 +1278,7 @@ function switchMainTab(name){
   });
   if(name==='ai') renderAITab();
   if(name==='results') renderResultsTab();
+  if(name==='bds') renderBdsTab();
 }
 
 /* ---------- Phân tích AI: hiện tại & tương lai ---------- */
@@ -1467,8 +1526,8 @@ function renderResultsTab(){
 /* ============================================================
    MODAL SYSTEM
    ============================================================ */
-function openModal(html){
-  document.getElementById('modalRoot').innerHTML = `<div class="modal-overlay" onmousedown="if(event.target===this) closeModal()"><div class="modal-card">${html}</div></div>`;
+function openModal(html, extraClass){
+  document.getElementById('modalRoot').innerHTML = `<div class="modal-overlay" onmousedown="if(event.target===this) closeModal()"><div class="modal-card ${extraClass||''}">${html}</div></div>`;
 }
 function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
 function showToast(msg){
@@ -2335,6 +2394,453 @@ async function submitCapitalTx(type){
   await logActivity(type===TX_TYPE.NAP_VON?'Nạp vốn':'Rút vốn', `${fmtMoney(sotien)}${ghichu?' — '+ghichu:''}`);
   closeModal(); renderAll();
   showToast(type===TX_TYPE.NAP_VON?'Đã nạp vốn vào quỹ.':'Đã rút vốn khỏi quỹ.');
+}
+
+/* ============================================================
+   ĐẦU TƯ BDS — vốn vay ngân hàng (VIB) đầu tư công trình,
+   dòng tiền cho thuê + kịch bản bán, hiệu suất đầu tư
+   ============================================================ */
+const BDS_STATUS = { XAY_DUNG:'XAY_DUNG', CHO_THUE:'CHO_THUE', DA_BAN:'DA_BAN' };
+const BDS_STATUS_LABEL = { XAY_DUNG:'Đang xây dựng', CHO_THUE:'Đang cho thuê', DA_BAN:'Đã bán' };
+
+function addMonthsToStr(dateStr, months){
+  const d = new Date(dateStr+'T00:00:00');
+  d.setMonth(d.getMonth()+Number(months));
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function bdsTongCP(p){ return Number(p.cpDat||0)+Number(p.cpXayDung||0)+Number(p.cpKhac||0); }
+function bdsVonTuCo(p){ return bdsTongCP(p) - Number(p.vonVayNH||0); }
+
+/* Chuẩn kế toán: Lãi vay = Dư nợ gốc đầu kỳ × Lãi suất năm ÷ 365 × Số ngày thực tế kỳ đó (ACT/365) */
+function bdsRecalcSchedule(p){
+  let duNo = Number(p.vonVayNH||0);
+  let kyTruoc = p.ngayGiaiNgan || p.ngayKhoiCong || todayStr();
+  let luyKe = 0;
+  (p.lichThang||[]).forEach(row=>{
+    row.duNoDauKy = duNo;
+    row.soNgay = row.ky ? Math.max(0, daysBetween(kyTruoc, row.ky)) : 0;
+    row.tienLaiNH = Math.round(duNo * (Number(row.laiSuat||0)/100) / 365 * row.soNgay);
+    const traGoc = Math.min(Number(row.traGoc||0), duNo);
+    row.traGoc = traGoc;
+    row.duNoCuoiKy = Math.max(0, duNo - traGoc);
+    row.dongTienRong = Number(row.doanhThuChoThue||0) - Number(row.chiPhiVanHanh||0) - row.tienLaiNH - traGoc;
+    luyKe += row.dongTienRong;
+    row.luyKeVanHanh = luyKe;
+    duNo = row.duNoCuoiKy;
+    if(row.ky) kyTruoc = row.ky;
+  });
+}
+
+/* IRR tháng quy đổi năm — dò nghiệm NPV=0 bằng chia đôi khoảng, ổn định hơn Newton-Raphson với chuỗi tiền mặt bất kỳ */
+function bdsIRR(flows){
+  if(!flows || flows.length<2) return null;
+  const npv = r => flows.reduce((s,cf,i)=> s + cf/Math.pow(1+r,i), 0);
+  let lo=-0.9, hi=8, flo=npv(lo), fhi=npv(hi);
+  if(!isFinite(flo) || !isFinite(fhi) || flo*fhi>0) return null;
+  let mid=0;
+  for(let i=0;i<80;i++){
+    mid = (lo+hi)/2;
+    const fm = npv(mid);
+    if(Math.abs(fm)<1) break;
+    if(flo*fm<0){ hi=mid; } else { lo=mid; flo=fm; }
+  }
+  return (Math.pow(1+mid,12)-1)*100;
+}
+
+function bdsComputeMetrics(p){
+  bdsRecalcSchedule(p);
+  const rows = p.lichThang||[];
+  const tongLaiNH = rows.reduce((s,r)=>s+Number(r.tienLaiNH||0),0);
+  const tongThuThue = rows.reduce((s,r)=>s+Number(r.doanhThuChoThue||0),0);
+  const tongChiVanHanh = rows.reduce((s,r)=>s+Number(r.chiPhiVanHanh||0),0);
+  const dongTienVanHanhLuyKe = rows.length ? rows[rows.length-1].luyKeVanHanh : 0;
+  const duNoConLai = rows.length ? rows[rows.length-1].duNoCuoiKy : Number(p.vonVayNH||0);
+  const vonTuCo = bdsVonTuCo(p);
+  let tienVeKhiBan=null, loiNhuan=null, roi=null, irr=null;
+  if(p.ban && p.ban.daBan){
+    tienVeKhiBan = Number(p.ban.giaBan||0) - duNoConLai - Number(p.ban.chiPhiBan||0);
+    loiNhuan = tienVeKhiBan + dongTienVanHanhLuyKe - vonTuCo;
+    roi = vonTuCo>0 ? (loiNhuan/vonTuCo*100) : null;
+    if(rows.length){
+      const flows = [-vonTuCo, ...rows.map((r,i)=> i===rows.length-1 ? Number(r.dongTienRong||0)+tienVeKhiBan : Number(r.dongTienRong||0))];
+      irr = bdsIRR(flows);
+    } else if(vonTuCo>0){
+      irr = ((tienVeKhiBan/vonTuCo)-1)*100;
+    }
+  }
+  let thangHoaVon = null;
+  for(const r of rows){ if(r.luyKeVanHanh >= vonTuCo){ thangHoaVon = r.ky; break; } }
+  return { tongLaiNH, tongThuThue, tongChiVanHanh, dongTienVanHanhLuyKe, duNoConLai, vonTuCo, tienVeKhiBan, loiNhuan, roi, irr, thangHoaVon };
+}
+
+/* ---------- render danh sách dự án ---------- */
+function renderBdsTab(){
+  const wrap = document.getElementById('bdsCardsList');
+  const empty = document.getElementById('bdsEmptyState');
+  if(!wrap) return;
+  if(!bdsProjects.length){
+    wrap.innerHTML='';
+    if(empty) empty.classList.remove('hidden');
+    return;
+  }
+  if(empty) empty.classList.add('hidden');
+  wrap.innerHTML = bdsProjects.map(p=>{
+    const m = bdsComputeMetrics(p);
+    const rows = p.lichThang||[];
+    const thangGanNhat = rows[rows.length-1];
+    const statusCls = p.trangThai===BDS_STATUS.DA_BAN?'ok':(p.trangThai===BDS_STATUS.CHO_THUE?'warn':'neutral');
+    return `
+      <div class="bds-card" onclick="openBdsDetail('${p.id}')">
+        <div class="row1">
+          <div class="name">${escapeHtml(p.doiTac)}</div>
+          <span class="stamp ${statusCls}">${BDS_STATUS_LABEL[p.trangThai]}</span>
+        </div>
+        <div class="meta">${escapeHtml(p.diaChi||'—')}${p.soPhong?` · ${p.soPhong} phòng`:''}</div>
+        <div class="kpi-mini-grid">
+          <div><div class="k">Tổng CP công trình</div><div class="v">${fmtMoney(bdsTongCP(p))}</div></div>
+          <div><div class="k">Vốn vay VIB</div><div class="v">${fmtMoney(p.vonVayNH)}</div></div>
+          <div><div class="k">Dòng tiền tháng gần nhất</div><div class="v ${thangGanNhat && thangGanNhat.dongTienRong<0?'neg':'pos'}">${thangGanNhat?fmtMoney(thangGanNhat.dongTienRong):'—'}</div></div>
+          <div><div class="k">Dòng tiền vận hành lũy kế</div><div class="v ${m.dongTienVanHanhLuyKe<0?'neg':'pos'}">${fmtMoney(m.dongTienVanHanhLuyKe)}</div></div>
+        </div>
+        ${p.ban && p.ban.daBan ? `<div class="meta" style="margin-top:10px;color:var(--success);font-weight:600;">Đã bán — Lợi nhuận ${fmtMoney(m.loiNhuan)} (ROI ${m.roi!==null?fmtPct(m.roi):'—'})</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+/* ---------- form thêm / sửa thông tin dự án ---------- */
+function openBdsForm(id){
+  if(!requireUser()) return;
+  if(!requireRole('staff')) return;
+  const p = id ? bdsProjects.find(x=>x.id===id) : null;
+  openModal(`
+    <h2>${p?'Sửa dự án BDS':'Thêm dự án Đầu tư BDS'}</h2>
+    <div class="modal-sub">Vốn vay ngân hàng đầu tư công trình — dòng tiền cho thuê/bán nhập chi tiết sau khi lưu.</div>
+    <div class="field"><label>Đối tác góp vốn / Tên dự án</label><input type="text" id="bp_doiTac" value="${p?escapeHtml(p.doiTac):''}" placeholder="VD: Hoàng Minh Tuấn"></div>
+    <div class="field"><label>Địa chỉ công trình</label><input type="text" id="bp_diaChi" value="${p?escapeHtml(p.diaChi||''):''}"></div>
+    <div class="two-col">
+      <div class="field"><label>Loại hình</label><input type="text" id="bp_loaiHinh" value="${p?escapeHtml(p.loaiHinh||'Nhà CCMN'):'Nhà CCMN'}"></div>
+      <div class="field"><label>Số phòng dự kiến</label><input type="number" id="bp_soPhong" value="${p?p.soPhong:''}"></div>
+    </div>
+    <div class="two-col">
+      <div class="field"><label>Ngày khởi công</label><input type="date" id="bp_ngayKhoiCong" value="${p?p.ngayKhoiCong||'':''}"></div>
+      <div class="field"><label>Ngày hoàn thành (dự kiến/thực tế)</label><input type="date" id="bp_ngayHoanThanh" value="${p?p.ngayHoanThanh||'':''}"></div>
+    </div>
+    <div class="detail-section" style="margin-top:6px;padding-top:10px;">
+      <h3>Chi phí toàn bộ công trình</h3>
+      <div class="two-col">
+        <div class="field"><label>CP đất (đ)</label><input type="number" id="bp_cpDat" value="${p?p.cpDat:0}" oninput="previewBdsVon()"></div>
+        <div class="field"><label>CP xây dựng (đ)</label><input type="number" id="bp_cpXayDung" value="${p?p.cpXayDung:0}" oninput="previewBdsVon()"></div>
+      </div>
+      <div class="field"><label>CP khác (pháp lý, nội thất...) (đ)</label><input type="number" id="bp_cpKhac" value="${p?p.cpKhac:0}" oninput="previewBdsVon()"></div>
+    </div>
+    <div class="detail-section" style="margin-top:6px;padding-top:10px;">
+      <h3>Cơ cấu vốn vay ngân hàng</h3>
+      <div class="two-col">
+        <div class="field"><label>Vốn vay ngân hàng (đ)</label><input type="number" id="bp_vonVay" value="${p?p.vonVayNH:0}" oninput="previewBdsVon()"></div>
+        <div class="field"><label>Ngày giải ngân</label><input type="date" id="bp_ngayGiaiNgan" value="${p?p.ngayGiaiNgan||'':''}"></div>
+      </div>
+      <div class="preview-line" id="bdsVonPreview">Vốn tự có: —</div>
+    </div>
+    <div class="field" style="margin-top:6px;"><label>Ghi chú</label><input type="text" id="bp_ghiChu" value="${p?escapeHtml(p.ghiChu||''):''}"></div>
+    <div class="err-msg" id="bdsFormErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="closeModal()">Huỷ</button>
+      <button class="btn btn-brass" onclick="submitBdsForm('${id||''}')">${p?'Lưu thay đổi':'Tạo dự án'}</button>
+    </div>
+  `);
+  previewBdsVon();
+}
+function previewBdsVon(){
+  const cpDat = Number(document.getElementById('bp_cpDat').value)||0;
+  const cpXayDung = Number(document.getElementById('bp_cpXayDung').value)||0;
+  const cpKhac = Number(document.getElementById('bp_cpKhac').value)||0;
+  const vonVay = Number(document.getElementById('bp_vonVay').value)||0;
+  const tongCP = cpDat+cpXayDung+cpKhac;
+  document.getElementById('bdsVonPreview').textContent = `Tổng CP công trình: ${fmtMoney(tongCP)}  —  Vốn tự có cần bỏ: ${fmtMoney(tongCP-vonVay)}`;
+}
+async function submitBdsForm(id){
+  const doiTac = document.getElementById('bp_doiTac').value.trim();
+  const err = document.getElementById('bdsFormErr');
+  if(!doiTac){ err.textContent='Nhập tên đối tác / dự án.'; return; }
+  const data = {
+    doiTac,
+    diaChi: document.getElementById('bp_diaChi').value.trim(),
+    loaiHinh: document.getElementById('bp_loaiHinh').value.trim()||'Nhà CCMN',
+    soPhong: Number(document.getElementById('bp_soPhong').value)||0,
+    ngayKhoiCong: document.getElementById('bp_ngayKhoiCong').value,
+    ngayHoanThanh: document.getElementById('bp_ngayHoanThanh').value,
+    cpDat: Number(document.getElementById('bp_cpDat').value)||0,
+    cpXayDung: Number(document.getElementById('bp_cpXayDung').value)||0,
+    cpKhac: Number(document.getElementById('bp_cpKhac').value)||0,
+    vonVayNH: Number(document.getElementById('bp_vonVay').value)||0,
+    ngayGiaiNgan: document.getElementById('bp_ngayGiaiNgan').value,
+    ghiChu: document.getElementById('bp_ghiChu').value.trim()
+  };
+  let p;
+  if(id){
+    p = bdsProjects.find(x=>x.id===id);
+    Object.assign(p, data);
+  }else{
+    p = Object.assign({ id:uid(), trangThai:BDS_STATUS.XAY_DUNG, lichThang:[], phong:[], ban:{daBan:false}, createdAt:new Date().toISOString(), createdBy:currentUser }, data);
+    bdsProjects.push(p);
+  }
+  bdsRecalcSchedule(p);
+  await saveBds();
+  await logActivity(id?'Sửa dự án BDS':'Thêm dự án BDS', doiTac);
+  closeModal();
+  renderBdsTab();
+  showToast(id?'Đã lưu thay đổi.':'Đã tạo dự án đầu tư BDS mới.');
+}
+
+/* ---------- chi tiết dự án: công trình, lịch lãi vay, cho thuê, bán ---------- */
+function bdsDetailHtml(pid){
+  const p = bdsProjects.find(x=>x.id===pid);
+  if(!p) return `<div>Không tìm thấy dự án.</div><div class="modal-close-row"><button class="btn btn-ghost" onclick="closeModal()">Đóng</button></div>`;
+  const m = bdsComputeMetrics(p);
+  const rows = p.lichThang||[];
+  const rooms = p.phong||[];
+  const canStaff = roleAtLeast('staff');
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+      <div>
+        <h2 style="margin-bottom:2px;">${escapeHtml(p.doiTac)}</h2>
+        <div class="modal-sub" style="margin-bottom:4px;">${escapeHtml(p.diaChi||'—')}${p.loaiHinh?` · ${escapeHtml(p.loaiHinh)}`:''}${p.soPhong?` · ${p.soPhong} phòng`:''}</div>
+      </div>
+      <span class="stamp ${p.trangThai===BDS_STATUS.DA_BAN?'ok':(p.trangThai===BDS_STATUS.CHO_THUE?'warn':'neutral')}">${BDS_STATUS_LABEL[p.trangThai]}</span>
+    </div>
+
+    <div class="cards" style="margin:16px 0 4px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+      <div class="card"><div class="label">Tổng CP công trình</div><div class="value">${fmtMoney(bdsTongCP(p))}</div></div>
+      <div class="card"><div class="label">Vốn vay ngân hàng</div><div class="value">${fmtMoney(p.vonVayNH)}</div></div>
+      <div class="card"><div class="label">Vốn tự có</div><div class="value">${fmtMoney(m.vonTuCo)}</div></div>
+      <div class="card ${m.dongTienVanHanhLuyKe<0?'danger':'ok'}"><div class="label">Dòng tiền vận hành lũy kế</div><div class="value">${fmtMoney(m.dongTienVanHanhLuyKe)}</div></div>
+      <div class="card"><div class="label">Tổng lãi NH đã tính</div><div class="value">${fmtMoney(m.tongLaiNH)}</div></div>
+      <div class="card"><div class="label">Dư nợ còn lại</div><div class="value">${fmtMoney(m.duNoConLai)}</div></div>
+      ${p.ban && p.ban.daBan ? `
+      <div class="card ${m.loiNhuan>=0?'ok':'danger'}"><div class="label">Lợi nhuận dự án</div><div class="value">${fmtMoney(m.loiNhuan)}</div></div>
+      <div class="card ${m.roi>=0?'ok':'danger'}"><div class="label">ROI</div><div class="value">${m.roi!==null?fmtPct(m.roi):'—'}</div></div>
+      <div class="card"><div class="label">IRR quy năm</div><div class="value">${m.irr!==null?fmtPct(m.irr):'—'}</div></div>
+      ` : `<div class="card"><div class="label">Hoà vốn dòng tiền thuê</div><div class="value" style="font-size:0.95rem;">${m.thangHoaVon?fmtDateVN(m.thangHoaVon):'Chưa tới'}</div></div>`}
+    </div>
+
+    <div class="detail-section">
+      <h3>Thông tin công trình</h3>
+      <div class="kv-grid">
+        <div class="k">Ngày khởi công</div><div class="v">${fmtDateVN(p.ngayKhoiCong)}</div>
+        <div class="k">Ngày hoàn thành</div><div class="v">${fmtDateVN(p.ngayHoanThanh)}</div>
+        <div class="k">Ngày giải ngân vay</div><div class="v">${fmtDateVN(p.ngayGiaiNgan)}</div>
+        <div class="k">CP đất / Xây dựng / Khác</div><div class="v">${fmtMoney(p.cpDat)} / ${fmtMoney(p.cpXayDung)} / ${fmtMoney(p.cpKhac)}</div>
+      </div>
+      ${canStaff?`
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center;">
+        <button class="btn btn-ghost" onclick="openBdsForm('${p.id}')">Sửa thông tin dự án</button>
+        <label style="font-size:0.82rem;color:var(--ink-soft);">Trạng thái:</label>
+        <select class="mini-input" style="width:auto;" onchange="bdsUpdateStatus('${p.id}', this.value)">
+          <option value="${BDS_STATUS.XAY_DUNG}" ${p.trangThai===BDS_STATUS.XAY_DUNG?'selected':''}>Đang xây dựng</option>
+          <option value="${BDS_STATUS.CHO_THUE}" ${p.trangThai===BDS_STATUS.CHO_THUE?'selected':''}>Đang cho thuê</option>
+          <option value="${BDS_STATUS.DA_BAN}" ${p.trangThai===BDS_STATUS.DA_BAN?'selected':''}>Đã bán</option>
+        </select>
+      </div>`:''}
+    </div>
+
+    <div class="detail-section">
+      <h3>Lịch lãi vay ngân hàng &amp; dòng tiền theo tháng</h3>
+      <div class="small-note">Nhập lãi suất %/năm mỗi tháng (ô vàng) — hệ thống tự tính tiền lãi = Dư nợ đầu kỳ × Lãi suất ÷ 365 × Số ngày thực tế. Thu thuê / chi vận hành nhập theo thực tế từng tháng.</div>
+      <div style="overflow-x:auto;margin-top:10px;">
+        <table class="ledger schedule-table">
+          <thead><tr>
+            <th>Kỳ</th><th style="text-align:right;">Dư nợ đầu kỳ</th><th style="text-align:right;">Lãi suất %/năm</th>
+            <th style="text-align:right;">Số ngày</th><th style="text-align:right;">Lãi NH (auto)</th>
+            <th style="text-align:right;">Trả gốc</th><th style="text-align:right;">Dư nợ cuối kỳ</th>
+            <th style="text-align:right;">Thu thuê</th><th style="text-align:right;">Chi vận hành</th>
+            <th style="text-align:right;">Dòng tiền ròng</th><th style="text-align:right;">Luỹ kế</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${rows.length ? rows.map(r=>`
+              <tr>
+                <td><input class="mini-input" type="date" value="${r.ky||''}" onchange="bdsUpdateRow('${p.id}','${r.id}','ky',this.value)" ${canStaff?'':'disabled'}></td>
+                <td class="num">${fmtMoney(r.duNoDauKy)}</td>
+                <td class="num"><input class="mini-input num rate-input" type="number" step="0.01" value="${r.laiSuat}" onchange="bdsUpdateRow('${p.id}','${r.id}','laiSuat',this.value)" ${canStaff?'':'disabled'}></td>
+                <td class="num">${fmtInt(r.soNgay)}</td>
+                <td class="num" style="font-weight:600;color:var(--brass-dark);">${fmtMoney(r.tienLaiNH)}</td>
+                <td class="num"><input class="mini-input num" type="number" value="${r.traGoc}" onchange="bdsUpdateRow('${p.id}','${r.id}','traGoc',this.value)" ${canStaff?'':'disabled'}></td>
+                <td class="num">${fmtMoney(r.duNoCuoiKy)}</td>
+                <td class="num"><input class="mini-input num" type="number" value="${r.doanhThuChoThue}" onchange="bdsUpdateRow('${p.id}','${r.id}','doanhThuChoThue',this.value)" ${canStaff?'':'disabled'}></td>
+                <td class="num"><input class="mini-input num" type="number" value="${r.chiPhiVanHanh}" onchange="bdsUpdateRow('${p.id}','${r.id}','chiPhiVanHanh',this.value)" ${canStaff?'':'disabled'}></td>
+                <td class="num" style="font-weight:600;color:${r.dongTienRong<0?'var(--danger)':'var(--success)'};">${fmtMoney(r.dongTienRong)}</td>
+                <td class="num">${fmtMoney(r.luyKeVanHanh)}</td>
+                <td>${canStaff?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:0.72rem;" onclick="bdsDeleteRow('${p.id}','${r.id}')">Xoá</button>`:''}</td>
+              </tr>`).join('') : `<tr><td colspan="12" style="text-align:center;color:var(--ink-soft);padding:16px;">Chưa có tháng nào — bấm "Thêm tháng" để bắt đầu lịch lãi vay.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      ${canStaff?`<button class="btn btn-brass" style="margin-top:10px;" onclick="bdsAddMonthRow('${p.id}')">+ Thêm tháng</button>`:''}
+    </div>
+
+    <div class="detail-section">
+      <h3>Cho thuê — danh sách phòng (nhà CCMN)</h3>
+      <div class="small-note">Danh sách phòng để tham chiếu khi thêm tháng mới (tự gợi ý doanh thu thuê từ các phòng đang có khách). Doanh thu thực tế từng tháng vẫn nhập/sửa trực tiếp ở bảng phía trên.</div>
+      <div style="overflow-x:auto;margin-top:8px;">
+        <table class="ledger">
+          <thead><tr><th>Mã phòng</th><th style="text-align:right;">Giá thuê/tháng</th><th>Trạng thái</th><th></th></tr></thead>
+          <tbody>
+            ${rooms.length ? rooms.map(r=>`
+              <tr>
+                <td><input class="mini-input" type="text" value="${escapeHtml(r.maPhong)}" onchange="bdsUpdateRoom('${p.id}','${r.id}','maPhong',this.value)" ${canStaff?'':'disabled'}></td>
+                <td class="num"><input class="mini-input num" type="number" value="${r.giaThue}" onchange="bdsUpdateRoom('${p.id}','${r.id}','giaThue',this.value)" ${canStaff?'':'disabled'}></td>
+                <td>
+                  <select class="mini-input" onchange="bdsUpdateRoom('${p.id}','${r.id}','trangThai',this.value)" ${canStaff?'':'disabled'}>
+                    <option value="trong" ${r.trangThai==='trong'?'selected':''}>Trống</option>
+                    <option value="co_khach" ${r.trangThai==='co_khach'?'selected':''}>Có khách</option>
+                  </select>
+                </td>
+                <td>${canStaff?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:0.72rem;" onclick="bdsDeleteRoom('${p.id}','${r.id}')">Xoá</button>`:''}</td>
+              </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:16px;">Chưa có phòng nào.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+      ${canStaff?`<button class="btn btn-ghost" style="margin-top:10px;" onclick="bdsAddRoom('${p.id}')">+ Thêm phòng</button>`:''}
+    </div>
+
+    <div class="detail-section">
+      <h3>Bán nhà</h3>
+      ${p.ban && p.ban.daBan ? `
+        <div class="kv-grid">
+          <div class="k">Ngày bán</div><div class="v">${fmtDateVN(p.ban.ngayBan)}</div>
+          <div class="k">Giá bán</div><div class="v">${fmtMoney(p.ban.giaBan)}</div>
+          <div class="k">Chi phí bán</div><div class="v">${fmtMoney(p.ban.chiPhiBan)}</div>
+          <div class="k">Tiền về ròng</div><div class="v">${fmtMoney(m.tienVeKhiBan)}</div>
+        </div>
+        ${canStaff?`<button class="btn btn-ghost" style="margin-top:8px;" onclick="bdsOpenSaleForm('${p.id}')">Sửa thông tin bán</button>`:''}
+      ` : `
+        <div class="small-note">Chưa bán — căn nhà tiếp tục tạo dòng tiền từ cho thuê ở bảng phía trên. Khi có khách mua toàn bộ căn, ghi nhận tại đây để tính lợi nhuận, ROI, IRR cuối cùng.</div>
+        ${canStaff?`<button class="btn btn-brass" style="margin-top:10px;" onclick="bdsOpenSaleForm('${p.id}')">Ghi nhận bán nhà</button>`:''}
+      `}
+    </div>
+
+    <div class="modal-close-row">
+      ${canStaff?`<button class="btn btn-danger" onclick="bdsDeleteProject('${p.id}')">Xoá dự án</button>`:''}
+      <button class="btn btn-ghost" onclick="closeModal()">Đóng</button>
+    </div>
+  `;
+}
+function openBdsDetail(pid){
+  openModal(bdsDetailHtml(pid), 'wide');
+}
+function renderBdsDetailModal(pid){
+  const card = document.querySelector('.modal-card');
+  if(card) card.innerHTML = bdsDetailHtml(pid);
+}
+
+/* ---------- lịch tháng: thêm / sửa / xoá dòng ---------- */
+async function bdsAddMonthRow(pid){
+  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
+  const rows = p.lichThang || (p.lichThang=[]);
+  const last = rows[rows.length-1];
+  const kyMoi = last && last.ky ? addMonthsToStr(last.ky, 1) : (p.ngayGiaiNgan || p.ngayKhoiCong || todayStr());
+  const duNoMoi = last ? last.duNoCuoiKy : Number(p.vonVayNH||0);
+  const laiSuatMoi = last ? Number(last.laiSuat||0) : 0;
+  const thueTuPhong = (p.phong||[]).filter(r=>r.trangThai==='co_khach').reduce((s,r)=>s+Number(r.giaThue||0),0);
+  rows.push({ id:uid(), ky:kyMoi, duNoDauKy:duNoMoi, laiSuat:laiSuatMoi, soNgay:0, tienLaiNH:0, traGoc:0, duNoCuoiKy:0,
+    doanhThuChoThue: p.trangThai===BDS_STATUS.CHO_THUE ? thueTuPhong : 0, chiPhiVanHanh:0, dongTienRong:0 });
+  bdsRecalcSchedule(p);
+  await saveBds();
+  renderBdsDetailModal(pid);
+  renderBdsTab();
+}
+async function bdsUpdateRow(pid, rowId, field, value){
+  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
+  const row = (p.lichThang||[]).find(r=>r.id===rowId); if(!row) return;
+  row[field] = field==='ky' ? value : (Number(value)||0);
+  bdsRecalcSchedule(p);
+  await saveBds();
+  renderBdsDetailModal(pid);
+  renderBdsTab();
+}
+async function bdsDeleteRow(pid, rowId){
+  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
+  p.lichThang = (p.lichThang||[]).filter(r=>r.id!==rowId);
+  bdsRecalcSchedule(p);
+  await saveBds();
+  renderBdsDetailModal(pid);
+  renderBdsTab();
+}
+
+/* ---------- phòng cho thuê ---------- */
+async function bdsAddRoom(pid){
+  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
+  const rooms = p.phong || (p.phong=[]);
+  rooms.push({ id:uid(), maPhong:`P${rooms.length+1}`, giaThue:0, trangThai:'trong' });
+  await saveBds();
+  renderBdsDetailModal(pid);
+}
+async function bdsUpdateRoom(pid, roomId, field, value){
+  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
+  const r = (p.phong||[]).find(x=>x.id===roomId); if(!r) return;
+  r[field] = (field==='maPhong'||field==='trangThai') ? value : (Number(value)||0);
+  await saveBds();
+  renderBdsDetailModal(pid);
+}
+async function bdsDeleteRoom(pid, roomId){
+  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
+  p.phong = (p.phong||[]).filter(x=>x.id!==roomId);
+  await saveBds();
+  renderBdsDetailModal(pid);
+}
+
+/* ---------- bán nhà ---------- */
+function bdsOpenSaleForm(pid){
+  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
+  openModal(`
+    <h2>Ghi nhận bán — ${escapeHtml(p.doiTac)}</h2>
+    <div class="modal-sub">Hệ thống tự trừ dư nợ ngân hàng còn lại tại thời điểm bán, tính lợi nhuận, ROI, IRR.</div>
+    <div class="field"><label>Ngày bán</label><input type="date" id="bs_ngayBan" value="${p.ban&&p.ban.ngayBan?p.ban.ngayBan:todayStr()}"></div>
+    <div class="two-col">
+      <div class="field"><label>Giá bán toàn bộ căn (đ)</label><input type="number" id="bs_giaBan" value="${p.ban?p.ban.giaBan||'':''}"></div>
+      <div class="field"><label>Chi phí bán (môi giới, thuế...) (đ)</label><input type="number" id="bs_chiPhiBan" value="${p.ban?p.ban.chiPhiBan||0:0}"></div>
+    </div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="bs_ghiChu" value="${p.ban?escapeHtml(p.ban.ghiChu||''):''}"></div>
+    <div class="err-msg" id="bdsSaleErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openBdsDetail('${pid}')">Huỷ</button>
+      <button class="btn btn-brass" onclick="bdsSubmitSale('${pid}')">Lưu &amp; tính hiệu suất</button>
+    </div>
+  `, 'wide');
+}
+async function bdsSubmitSale(pid){
+  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
+  const ngayBan = document.getElementById('bs_ngayBan').value;
+  const giaBan = Number(document.getElementById('bs_giaBan').value)||0;
+  const chiPhiBan = Number(document.getElementById('bs_chiPhiBan').value)||0;
+  const ghiChu = document.getElementById('bs_ghiChu').value.trim();
+  if(!ngayBan || !giaBan){ document.getElementById('bdsSaleErr').textContent='Nhập đủ Ngày bán và Giá bán.'; return; }
+  p.ban = { daBan:true, ngayBan, giaBan, chiPhiBan, ghiChu };
+  p.trangThai = BDS_STATUS.DA_BAN;
+  await saveBds();
+  await logActivity('Bán BDS', `${p.doiTac} — giá bán ${fmtMoney(giaBan)}`);
+  openBdsDetail(pid);
+  renderBdsTab();
+  showToast('Đã ghi nhận bán — đã tính lợi nhuận, ROI, IRR.');
+}
+
+/* ---------- trạng thái & xoá dự án ---------- */
+async function bdsUpdateStatus(pid, status){
+  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
+  p.trangThai = status;
+  await saveBds();
+  renderBdsTab();
+}
+async function bdsDeleteProject(pid){
+  if(!requireRole('admin')) return;
+  if(!confirm('Xoá vĩnh viễn dự án đầu tư BDS này? Không thể hoàn tác.')) return;
+  const p = bdsProjects.find(x=>x.id===pid);
+  bdsProjects = bdsProjects.filter(x=>x.id!==pid);
+  await saveBds();
+  await logActivity('Xoá dự án BDS', p?p.doiTac:pid);
+  closeModal();
+  renderBdsTab();
+  showToast('Đã xoá dự án.');
 }
 
 /* ---------- boot ---------- */
