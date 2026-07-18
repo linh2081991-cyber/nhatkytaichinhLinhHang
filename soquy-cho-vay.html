@@ -780,6 +780,43 @@ function fmtPct(n){
 function fmtInt(n){
   return Math.round(Number(n)||0).toLocaleString('vi-VN');
 }
+
+/* ---------- Ô nhập tiền: tự hiện dấu chấm ngăn cách hàng nghìn ngay khi gõ ---------- */
+function parseMoneyStr(s){
+  return Number(String(s==null?'':s).replace(/[^\d]/g,''))||0;
+}
+function fmtInputMoney(n){
+  if(n===null || n===undefined || n==='') return '';
+  n = Math.round(Number(n)||0);
+  return n.toLocaleString('vi-VN');
+}
+function moneyVal(id){
+  const el = document.getElementById(id);
+  return el ? parseMoneyStr(el.value) : 0;
+}
+function setMoneyInputValue(elOrId, n){
+  const el = typeof elOrId==='string' ? document.getElementById(elOrId) : elOrId;
+  if(el) el.value = fmtInputMoney(n);
+}
+function formatMoneyInputEl(el){
+  const start = el.selectionStart==null ? el.value.length : el.selectionStart;
+  const digitsBeforeCursor = el.value.slice(0, start).replace(/[^\d]/g,'').length;
+  const raw = el.value.replace(/[^\d]/g,'');
+  el.value = raw ? Number(raw).toLocaleString('vi-VN') : '';
+  let pos = 0, digits = 0;
+  while(pos < el.value.length && digits < digitsBeforeCursor){
+    if(/\d/.test(el.value[pos])) digits++;
+    pos++;
+  }
+  try{ el.setSelectionRange(pos, pos); }catch(e){}
+}
+function initMoneyInputs(root){
+  (root||document).querySelectorAll('.money-input').forEach(el=>{
+    if(el.dataset.moneyBound) return;
+    el.dataset.moneyBound = '1';
+    el.addEventListener('input', ()=>formatMoneyInputEl(el));
+  });
+}
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 
 /* ---------- core computations ---------- */
@@ -1623,6 +1660,7 @@ function renderResultsTab(){
    ============================================================ */
 function openModal(html, extraClass){
   document.getElementById('modalRoot').innerHTML = `<div class="modal-overlay" onmousedown="if(event.target===this) closeModal()"><div class="modal-card ${extraClass||''}">${html}</div></div>`;
+  initMoneyInputs(document.getElementById('modalRoot'));
 }
 function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
 function showToast(msg){
@@ -1642,8 +1680,8 @@ function openLoanForm(){
     <div class="modal-sub">Lãi/kỳ được tính tự động — không nhập tay để tránh sai số liệu.</div>
     <div class="field"><label>Tên khách hàng</label><input type="text" id="f_ten" list="customerNamesList" autocomplete="off" placeholder="Gõ để xem gợi ý tên đã có..."></div>
     <div class="two-col">
-      <div class="field"><label>Tổng tiền gốc (đ)</label><input type="number" id="f_goc" oninput="previewLaiKy()"></div>
-      <div class="field"><label>Đơn giá lãi (đ/triệu/ngày)</label><input type="number" id="f_dongia" oninput="previewLaiKy()" placeholder="VD: 1500"></div>
+      <div class="field"><label>Tổng tiền gốc (đ)</label><input type="text" inputmode="numeric" class="money-input" id="f_goc" oninput="previewLaiKy()"></div>
+      <div class="field"><label>Đơn giá lãi (đ/triệu/ngày)</label><input type="text" inputmode="numeric" class="money-input" id="f_dongia" oninput="previewLaiKy()" placeholder="VD: 1500"></div>
     </div>
     <div class="two-col">
       <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="f_chuky" value="30" oninput="previewLaiKy()"></div>
@@ -1663,7 +1701,7 @@ function openLoanForm(){
       <div class="preview-line" id="soKyPreview" style="margin-top:6px;">Số kỳ đã thu (tự động): —</div>
     </div>
     <div class="two-col">
-      <div class="field"><label>Tiền lãi nợ cũ (nếu có)</label><input type="number" id="f_noCu" value="0"></div>
+      <div class="field"><label>Tiền lãi nợ cũ (nếu có)</label><input type="text" inputmode="numeric" class="money-input" id="f_noCu" value="0"></div>
       <div class="field"><label>Ghi chú</label><input type="text" id="f_ghichu"></div>
     </div>
     <div class="err-msg" id="loanFormErr"></div>
@@ -1686,8 +1724,8 @@ function onFNgayDongLaiInput(){
   previewLaiKy();
 }
 function previewLaiKy(){
-  const goc = Number(document.getElementById('f_goc').value)||0;
-  const dongia = Number(document.getElementById('f_dongia').value)||0;
+  const goc = moneyVal('f_goc');
+  const dongia = moneyVal('f_dongia');
   const chuky = Number(document.getElementById('f_chuky').value)||0;
   const laiKy = Math.round(dongia*(goc/1000000)*chuky);
   const rate = dongia*0.0365;
@@ -1707,8 +1745,8 @@ function previewLaiKy(){
 }
 async function submitLoanForm(){
   const ten = document.getElementById('f_ten').value.trim();
-  const goc = Number(document.getElementById('f_goc').value);
-  const dongia = Number(document.getElementById('f_dongia').value);
+  const goc = moneyVal('f_goc');
+  const dongia = moneyVal('f_dongia');
   const chuky = Number(document.getElementById('f_chuky').value);
   const ngaybd = document.getElementById('f_ngaybd').value;
   const ngayDongLai = document.getElementById('f_ngaydonglai').value || ngaybd;
@@ -1724,7 +1762,7 @@ async function submitLoanForm(){
     chuKy: chuky,
     ngayBatDau: ngaybd,
     ngayDongLaiGanNhat: ngayDongLai,
-    tienLaiNoCu: Number(document.getElementById('f_noCu').value)||0,
+    tienLaiNoCu: moneyVal('f_noCu'),
     ghiChu: document.getElementById('f_ghichu').value.trim(),
     lichSuThuLai: [],
     lyDoBienDongLai: [],
@@ -1831,7 +1869,7 @@ function openCollectForm(id){
       <div class="field"><label>Ngày thu</label><input type="date" id="c_ngay" value="${todayStr()}"></div>
       <div class="field"><label>Số kỳ</label><input type="number" id="c_soky" value="1" min="1" oninput="previewCollectAmt(${laiKy})"></div>
     </div>
-    <div class="field"><label>Số tiền thu (tự tính, có thể sửa)</label><input type="number" id="c_sotien" value="${laiKy}"></div>
+    <div class="field"><label>Số tiền thu (tự tính, có thể sửa)</label><input type="text" inputmode="numeric" class="money-input" id="c_sotien" value="${fmtInputMoney(laiKy)}"></div>
     <div class="field"><label>Ghi chú</label><input type="text" id="c_ghichu"></div>
     <div class="modal-close-row">
       <button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Quay lại</button>
@@ -1841,13 +1879,13 @@ function openCollectForm(id){
 }
 function previewCollectAmt(laiKy){
   const soky = Number(document.getElementById('c_soky').value)||1;
-  document.getElementById('c_sotien').value = laiKy*soky;
+  setMoneyInputValue('c_sotien', laiKy*soky);
 }
 async function submitCollect(id){
   const loan = loans.find(l=>l.id===id);
   const ngay = document.getElementById('c_ngay').value;
   const soky = Number(document.getElementById('c_soky').value)||1;
-  const sotien = Number(document.getElementById('c_sotien').value)||0;
+  const sotien = moneyVal('c_sotien');
   const ghichu = document.getElementById('c_ghichu').value.trim();
   if(!ngay || !sotien){ showToast('Điền đủ ngày thu và số tiền.'); return; }
   loan.lichSuThuLai.push({ id:uid(), ngayThu:ngay, soKy:soky, soTien:sotien, ghiChu:ghichu, nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
@@ -1868,8 +1906,8 @@ function openEditLoanForm(id){
     <div class="modal-sub">Sửa Gốc / Đơn giá lãi / Chu kỳ / Ngày vay / Ngày đóng lãi gần nhất cần mã PIN Quản trị.</div>
     <div class="field"><label>Tên khách hàng</label><input type="text" id="e_ten" list="customerNamesList" autocomplete="off" value="${escapeHtml(loan.tenKhachHang)}"></div>
     <div class="two-col">
-      <div class="field"><label>Tổng tiền gốc</label><input type="number" id="e_goc" value="${loan.tongTienGoc}"></div>
-      <div class="field"><label>Đơn giá lãi (đ/tr/ngày)</label><input type="number" id="e_dongia" value="${loan.donGiaLai}"></div>
+      <div class="field"><label>Tổng tiền gốc</label><input type="text" inputmode="numeric" class="money-input" id="e_goc" value="${fmtInputMoney(loan.tongTienGoc)}"></div>
+      <div class="field"><label>Đơn giá lãi (đ/tr/ngày)</label><input type="text" inputmode="numeric" class="money-input" id="e_dongia" value="${fmtInputMoney(loan.donGiaLai)}"></div>
     </div>
     <div class="two-col">
       <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="e_chuky" value="${loan.chuKy}"></div>
@@ -1896,8 +1934,8 @@ function openEditLoanForm(id){
 async function submitEditLoan(id){
   const loan = loans.find(l=>l.id===id);
   const newTen = document.getElementById('e_ten').value.trim();
-  const newGoc = Number(document.getElementById('e_goc').value);
-  const newDongia = Number(document.getElementById('e_dongia').value);
+  const newGoc = moneyVal('e_goc');
+  const newDongia = moneyVal('e_dongia');
   const newChuky = Number(document.getElementById('e_chuky').value);
   const newNgaybd = document.getElementById('e_ngaybd').value;
   const newNgayDongLai = document.getElementById('e_ngaydonglai').value;
@@ -1950,7 +1988,7 @@ function openRateChangeForm(id){
   openModal(`
     <h2>Đổi lãi suất — ${escapeHtml(loan.tenKhachHang)}</h2>
     <div class="field"><label>Đơn giá lãi hiện tại</label><input type="text" value="${loan.donGiaLai} đ/tr/ngày" disabled></div>
-    <div class="field"><label>Đơn giá lãi mới (đ/tr/ngày)</label><input type="number" id="r_new"></div>
+    <div class="field"><label>Đơn giá lãi mới (đ/tr/ngày)</label><input type="text" inputmode="numeric" class="money-input" id="r_new"></div>
     <div class="field"><label>Lý do biến động lãi</label><input type="text" id="r_lydo" placeholder="VD: khách xin giảm, thoả thuận lại..."></div>
     <div class="field"><label>Mã PIN Quản trị</label><input type="password" id="r_pin"></div>
     <div class="err-msg" id="rateErr"></div>
@@ -1962,7 +2000,7 @@ function openRateChangeForm(id){
 }
 async function submitRateChange(id){
   const loan = loans.find(l=>l.id===id);
-  const newRate = Number(document.getElementById('r_new').value);
+  const newRate = moneyVal('r_new');
   const lydo = document.getElementById('r_lydo').value.trim();
   const pin = document.getElementById('r_pin').value;
   const err = document.getElementById('rateErr');
@@ -1987,7 +2025,7 @@ function askSettleLoan(id){
     <div class="modal-sub">${escapeHtml(loan.tenKhachHang)} — xác nhận khách đã trả hết gốc + lãi.</div>
     <div class="two-col">
       <div class="field"><label>Ngày tất toán</label><input type="date" id="s_ngay" value="${todayStr()}"></div>
-      <div class="field"><label>Số tiền gốc thực thu về</label><input type="number" id="s_gocthu" value="${loan.tongTienGoc}"></div>
+      <div class="field"><label>Số tiền gốc thực thu về</label><input type="text" inputmode="numeric" class="money-input" id="s_gocthu" value="${fmtInputMoney(loan.tongTienGoc)}"></div>
     </div>
     <div class="field"><label>Ghi chú (nếu thu khác gốc gốc ban đầu)</label><input type="text" id="s_ghichu"></div>
     <div class="small-note">Số tiền gốc thực thu sẽ được ghi vào Sổ quỹ như một khoản tiền vào (Thu hồi gốc).</div>
@@ -2001,7 +2039,7 @@ async function submitSettle(id){
   if(!requireUser()) return;
   const loan = loans.find(l=>l.id===id);
   const ngay = document.getElementById('s_ngay').value || todayStr();
-  const gocThu = Number(document.getElementById('s_gocthu').value)||0;
+  const gocThu = moneyVal('s_gocthu');
   const ghichu = document.getElementById('s_ghichu').value.trim();
   loan.tatToan = true;
   loan.ngayTatToan = ngay;
@@ -2469,7 +2507,7 @@ function openCapitalForm(type){
     <div class="modal-sub">Người thực hiện: <b>${escapeHtml(currentUser||'(chưa chọn)')}</b></div>
     <div class="two-col">
       <div class="field"><label>Ngày</label><input type="date" id="cap_ngay" value="${todayStr()}"></div>
-      <div class="field"><label>Số tiền</label><input type="number" id="cap_sotien"></div>
+      <div class="field"><label>Số tiền</label><input type="text" inputmode="numeric" class="money-input" id="cap_sotien"></div>
     </div>
     <div class="field"><label>Ghi chú</label><input type="text" id="cap_ghichu" placeholder="${isNap?'VD: chủ bỏ thêm vốn':'VD: rút lãi cá nhân'}"></div>
     ${!isNap?`<div class="field"><label>Mã PIN Quản trị</label><input type="password" id="cap_pin"></div>`:''}
@@ -2483,7 +2521,7 @@ function openCapitalForm(type){
 async function submitCapitalTx(type){
   if(!requireUser()) return;
   const ngay = document.getElementById('cap_ngay').value || todayStr();
-  const sotien = Number(document.getElementById('cap_sotien').value)||0;
+  const sotien = moneyVal('cap_sotien');
   const ghichu = document.getElementById('cap_ghichu').value.trim();
   const err = document.getElementById('capErr');
   if(!sotien){ err.textContent='Nhập số tiền hợp lệ.'; return; }
@@ -2663,8 +2701,8 @@ function openExternalLoanForm(){
     <div class="modal-sub">Tiền quỹ vay từ nguồn bên ngoài (không phải vay ngân hàng đầu tư BDS) — lãi trả được tính tự động, không nhập tay.</div>
     <div class="field"><label>Người / đơn vị cho vay</label><input type="text" id="x_ten" list="externalNamesList" autocomplete="off" placeholder="Gõ để xem gợi ý tên đã có..."></div>
     <div class="two-col">
-      <div class="field"><label>Tổng tiền vay (đ)</label><input type="number" id="x_goc" oninput="previewExtLaiKy()"></div>
-      <div class="field"><label>Đơn giá lãi (đ/triệu/ngày)</label><input type="number" id="x_dongia" oninput="previewExtLaiKy()" placeholder="VD: 1500"></div>
+      <div class="field"><label>Tổng tiền vay (đ)</label><input type="text" inputmode="numeric" class="money-input" id="x_goc" oninput="previewExtLaiKy()"></div>
+      <div class="field"><label>Đơn giá lãi (đ/triệu/ngày)</label><input type="text" inputmode="numeric" class="money-input" id="x_dongia" oninput="previewExtLaiKy()" placeholder="VD: 1500"></div>
     </div>
     <div class="two-col">
       <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="x_chuky" value="30" oninput="previewExtLaiKy()"></div>
@@ -2684,7 +2722,7 @@ function openExternalLoanForm(){
       <div class="preview-line" id="extSoKyPreview" style="margin-top:6px;">Số kỳ đã trả (tự động): —</div>
     </div>
     <div class="two-col">
-      <div class="field"><label>Tiền lãi nợ cũ (nếu có)</label><input type="number" id="x_noCu" value="0"></div>
+      <div class="field"><label>Tiền lãi nợ cũ (nếu có)</label><input type="text" inputmode="numeric" class="money-input" id="x_noCu" value="0"></div>
       <div class="field"><label>Ghi chú</label><input type="text" id="x_ghichu"></div>
     </div>
     <div class="err-msg" id="extLoanFormErr"></div>
@@ -2703,8 +2741,8 @@ function onXNgayVayChange(){
 }
 function onXNgayTraLaiInput(){ xNgayTraLaiTouched = true; previewExtLaiKy(); }
 function previewExtLaiKy(){
-  const goc = Number(document.getElementById('x_goc').value)||0;
-  const dongia = Number(document.getElementById('x_dongia').value)||0;
+  const goc = moneyVal('x_goc');
+  const dongia = moneyVal('x_dongia');
   const chuky = Number(document.getElementById('x_chuky').value)||0;
   const laiKy = Math.round(dongia*(goc/1000000)*chuky);
   const rate = dongia*0.0365;
@@ -2723,8 +2761,8 @@ function previewExtLaiKy(){
 }
 async function submitExternalLoanForm(){
   const ten = document.getElementById('x_ten').value.trim();
-  const goc = Number(document.getElementById('x_goc').value);
-  const dongia = Number(document.getElementById('x_dongia').value);
+  const goc = moneyVal('x_goc');
+  const dongia = moneyVal('x_dongia');
   const chuky = Number(document.getElementById('x_chuky').value);
   const ngaybd = document.getElementById('x_ngaybd').value;
   const ngayTraLai = document.getElementById('x_ngaytralai').value || ngaybd;
@@ -2734,7 +2772,7 @@ async function submitExternalLoanForm(){
   const ext = {
     id: uid(), tenKhachHang: ten, hinhThucThuLai: hinhThuc, tongTienGoc: goc, donGiaLai: dongia||0,
     chuKy: chuky, ngayBatDau: ngaybd, ngayDongLaiGanNhat: ngayTraLai,
-    tienLaiNoCu: Number(document.getElementById('x_noCu').value)||0,
+    tienLaiNoCu: moneyVal('x_noCu'),
     ghiChu: document.getElementById('x_ghichu').value.trim(),
     lichSuThuLai: [], lyDoBienDongLai: [], tatToan:false, ngayTatToan:null,
     createdAt: new Date().toISOString(), createdBy: currentUser
@@ -2831,7 +2869,7 @@ function openExtCollectForm(id){
       <div class="field"><label>Ngày trả</label><input type="date" id="xc_ngay" value="${todayStr()}"></div>
       <div class="field"><label>Số kỳ</label><input type="number" id="xc_soky" value="1" min="1" oninput="previewExtCollectAmt(${laiKy})"></div>
     </div>
-    <div class="field"><label>Số tiền trả (tự tính, có thể sửa)</label><input type="number" id="xc_sotien" value="${laiKy}"></div>
+    <div class="field"><label>Số tiền trả (tự tính, có thể sửa)</label><input type="text" inputmode="numeric" class="money-input" id="xc_sotien" value="${fmtInputMoney(laiKy)}"></div>
     <div class="field"><label>Ghi chú</label><input type="text" id="xc_ghichu"></div>
     <div class="modal-close-row">
       <button class="btn btn-ghost" onclick="openExternalLoanDetail('${id}')">Quay lại</button>
@@ -2841,13 +2879,13 @@ function openExtCollectForm(id){
 }
 function previewExtCollectAmt(laiKy){
   const soky = Number(document.getElementById('xc_soky').value)||1;
-  document.getElementById('xc_sotien').value = laiKy*soky;
+  setMoneyInputValue('xc_sotien', laiKy*soky);
 }
 async function submitExtCollect(id){
   const loan = externalLoans.find(l=>l.id===id);
   const ngay = document.getElementById('xc_ngay').value;
   const soky = Number(document.getElementById('xc_soky').value)||1;
-  const sotien = Number(document.getElementById('xc_sotien').value)||0;
+  const sotien = moneyVal('xc_sotien');
   const ghichu = document.getElementById('xc_ghichu').value.trim();
   if(!ngay || !sotien){ showToast('Điền đủ ngày trả và số tiền.'); return; }
   loan.lichSuThuLai.push({ id:uid(), ngayThu:ngay, soKy:soky, soTien:sotien, ghiChu:ghichu, nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
@@ -2868,8 +2906,8 @@ function openEditExternalLoanForm(id){
     <div class="modal-sub">Sửa Gốc / Đơn giá lãi / Chu kỳ / Ngày vay / Ngày trả lãi gần nhất cần mã PIN Quản trị.</div>
     <div class="field"><label>Người / đơn vị cho vay</label><input type="text" id="xe_ten" list="externalNamesList" autocomplete="off" value="${escapeHtml(loan.tenKhachHang)}"></div>
     <div class="two-col">
-      <div class="field"><label>Tổng tiền vay</label><input type="number" id="xe_goc" value="${loan.tongTienGoc}"></div>
-      <div class="field"><label>Đơn giá lãi (đ/tr/ngày)</label><input type="number" id="xe_dongia" value="${loan.donGiaLai}"></div>
+      <div class="field"><label>Tổng tiền vay</label><input type="text" inputmode="numeric" class="money-input" id="xe_goc" value="${fmtInputMoney(loan.tongTienGoc)}"></div>
+      <div class="field"><label>Đơn giá lãi (đ/tr/ngày)</label><input type="text" inputmode="numeric" class="money-input" id="xe_dongia" value="${fmtInputMoney(loan.donGiaLai)}"></div>
     </div>
     <div class="two-col">
       <div class="field"><label>Chu kỳ (ngày)</label><input type="number" id="xe_chuky" value="${loan.chuKy}"></div>
@@ -2895,8 +2933,8 @@ function openEditExternalLoanForm(id){
 async function submitEditExternalLoan(id){
   const loan = externalLoans.find(l=>l.id===id);
   const newTen = document.getElementById('xe_ten').value.trim();
-  const newGoc = Number(document.getElementById('xe_goc').value);
-  const newDongia = Number(document.getElementById('xe_dongia').value);
+  const newGoc = moneyVal('xe_goc');
+  const newDongia = moneyVal('xe_dongia');
   const newChuky = Number(document.getElementById('xe_chuky').value);
   const newNgaybd = document.getElementById('xe_ngaybd').value;
   const newNgayTraLai = document.getElementById('xe_ngaytralai').value;
@@ -2945,7 +2983,7 @@ function openRateChangeExternalForm(id){
   openModal(`
     <h2>Đổi lãi suất — ${escapeHtml(loan.tenKhachHang)}</h2>
     <div class="field"><label>Đơn giá lãi hiện tại</label><input type="text" value="${loan.donGiaLai} đ/tr/ngày" disabled></div>
-    <div class="field"><label>Đơn giá lãi mới (đ/tr/ngày)</label><input type="number" id="xr_new"></div>
+    <div class="field"><label>Đơn giá lãi mới (đ/tr/ngày)</label><input type="text" inputmode="numeric" class="money-input" id="xr_new"></div>
     <div class="field"><label>Lý do biến động lãi</label><input type="text" id="xr_lydo" placeholder="VD: chủ nợ điều chỉnh lãi..."></div>
     <div class="field"><label>Mã PIN Quản trị</label><input type="password" id="xr_pin"></div>
     <div class="err-msg" id="extRateErr"></div>
@@ -2957,7 +2995,7 @@ function openRateChangeExternalForm(id){
 }
 async function submitRateChangeExternal(id){
   const loan = externalLoans.find(l=>l.id===id);
-  const newRate = Number(document.getElementById('xr_new').value);
+  const newRate = moneyVal('xr_new');
   const lydo = document.getElementById('xr_lydo').value.trim();
   const pin = document.getElementById('xr_pin').value;
   const err = document.getElementById('extRateErr');
@@ -2982,7 +3020,7 @@ function askSettleExternalLoan(id){
     <div class="modal-sub">${escapeHtml(loan.tenKhachHang)} — xác nhận đã trả hết gốc + lãi.</div>
     <div class="two-col">
       <div class="field"><label>Ngày trả hết</label><input type="date" id="xs_ngay" value="${todayStr()}"></div>
-      <div class="field"><label>Số tiền gốc thực trả</label><input type="number" id="xs_gocthu" value="${loan.tongTienGoc}"></div>
+      <div class="field"><label>Số tiền gốc thực trả</label><input type="text" inputmode="numeric" class="money-input" id="xs_gocthu" value="${fmtInputMoney(loan.tongTienGoc)}"></div>
     </div>
     <div class="field"><label>Ghi chú</label><input type="text" id="xs_ghichu"></div>
     <div class="small-note">Số tiền gốc thực trả sẽ được ghi vào Sổ quỹ như một khoản tiền ra (Trả gốc vay ngoài).</div>
@@ -2996,7 +3034,7 @@ async function submitSettleExternal(id){
   if(!requireUser()) return;
   const loan = externalLoans.find(l=>l.id===id);
   const ngay = document.getElementById('xs_ngay').value || todayStr();
-  const gocThu = Number(document.getElementById('xs_gocthu').value)||0;
+  const gocThu = moneyVal('xs_gocthu');
   const ghichu = document.getElementById('xs_ghichu').value.trim();
   loan.tatToan = true;
   loan.ngayTatToan = ngay;
@@ -3166,15 +3204,15 @@ function openBdsForm(id){
     <div class="detail-section" style="margin-top:6px;padding-top:10px;">
       <h3>Chi phí toàn bộ công trình</h3>
       <div class="two-col">
-        <div class="field"><label>CP đất (đ)</label><input type="number" id="bp_cpDat" value="${p?p.cpDat:0}" oninput="previewBdsVon()"></div>
-        <div class="field"><label>CP xây dựng (đ)</label><input type="number" id="bp_cpXayDung" value="${p?p.cpXayDung:0}" oninput="previewBdsVon()"></div>
+        <div class="field"><label>CP đất (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_cpDat" value="${fmtInputMoney(p?p.cpDat:0)}" oninput="previewBdsVon()"></div>
+        <div class="field"><label>CP xây dựng (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_cpXayDung" value="${fmtInputMoney(p?p.cpXayDung:0)}" oninput="previewBdsVon()"></div>
       </div>
-      <div class="field"><label>CP khác (pháp lý, nội thất...) (đ)</label><input type="number" id="bp_cpKhac" value="${p?p.cpKhac:0}" oninput="previewBdsVon()"></div>
+      <div class="field"><label>CP khác (pháp lý, nội thất...) (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_cpKhac" value="${fmtInputMoney(p?p.cpKhac:0)}" oninput="previewBdsVon()"></div>
     </div>
     <div class="detail-section" style="margin-top:6px;padding-top:10px;">
       <h3>Cơ cấu vốn vay ngân hàng</h3>
       <div class="two-col">
-        <div class="field"><label>Vốn vay ngân hàng (đ)</label><input type="number" id="bp_vonVay" value="${p?p.vonVayNH:0}" oninput="previewBdsVon()"></div>
+        <div class="field"><label>Vốn vay ngân hàng (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_vonVay" value="${fmtInputMoney(p?p.vonVayNH:0)}" oninput="previewBdsVon()"></div>
         <div class="field"><label>Ngày giải ngân</label><input type="date" id="bp_ngayGiaiNgan" value="${p?p.ngayGiaiNgan||'':''}"></div>
       </div>
       <div class="preview-line" id="bdsVonPreview">Vốn tự có: —</div>
@@ -3189,10 +3227,10 @@ function openBdsForm(id){
   previewBdsVon();
 }
 function previewBdsVon(){
-  const cpDat = Number(document.getElementById('bp_cpDat').value)||0;
-  const cpXayDung = Number(document.getElementById('bp_cpXayDung').value)||0;
-  const cpKhac = Number(document.getElementById('bp_cpKhac').value)||0;
-  const vonVay = Number(document.getElementById('bp_vonVay').value)||0;
+  const cpDat = moneyVal('bp_cpDat');
+  const cpXayDung = moneyVal('bp_cpXayDung');
+  const cpKhac = moneyVal('bp_cpKhac');
+  const vonVay = moneyVal('bp_vonVay');
   const tongCP = cpDat+cpXayDung+cpKhac;
   document.getElementById('bdsVonPreview').textContent = `Tổng CP công trình: ${fmtMoney(tongCP)}  —  Vốn tự có cần bỏ: ${fmtMoney(tongCP-vonVay)}`;
 }
@@ -3207,10 +3245,10 @@ async function submitBdsForm(id){
     soPhong: Number(document.getElementById('bp_soPhong').value)||0,
     ngayKhoiCong: document.getElementById('bp_ngayKhoiCong').value,
     ngayHoanThanh: document.getElementById('bp_ngayHoanThanh').value,
-    cpDat: Number(document.getElementById('bp_cpDat').value)||0,
-    cpXayDung: Number(document.getElementById('bp_cpXayDung').value)||0,
-    cpKhac: Number(document.getElementById('bp_cpKhac').value)||0,
-    vonVayNH: Number(document.getElementById('bp_vonVay').value)||0,
+    cpDat: moneyVal('bp_cpDat'),
+    cpXayDung: moneyVal('bp_cpXayDung'),
+    cpKhac: moneyVal('bp_cpKhac'),
+    vonVayNH: moneyVal('bp_vonVay'),
     ngayGiaiNgan: document.getElementById('bp_ngayGiaiNgan').value,
     ghiChu: document.getElementById('bp_ghiChu').value.trim()
   };
@@ -3301,10 +3339,10 @@ function bdsDetailHtml(pid){
                 <td class="num"><input class="mini-input num rate-input" type="number" step="0.01" value="${r.laiSuat}" onchange="bdsUpdateRow('${p.id}','${r.id}','laiSuat',this.value)" ${canStaff?'':'disabled'}></td>
                 <td class="num">${fmtInt(r.soNgay)}</td>
                 <td class="num" style="font-weight:600;color:var(--brass-dark);">${fmtMoney(r.tienLaiNH)}</td>
-                <td class="num"><input class="mini-input num" type="number" value="${r.traGoc}" onchange="bdsUpdateRow('${p.id}','${r.id}','traGoc',this.value)" ${canStaff?'':'disabled'}></td>
+                <td class="num"><input class="mini-input num money-input" type="text" inputmode="numeric" value="${fmtInputMoney(r.traGoc)}" onchange="bdsUpdateRow('${p.id}','${r.id}','traGoc',parseMoneyStr(this.value))" ${canStaff?'':'disabled'}></td>
                 <td class="num">${fmtMoney(r.duNoCuoiKy)}</td>
-                <td class="num"><input class="mini-input num" type="number" value="${r.doanhThuChoThue}" onchange="bdsUpdateRow('${p.id}','${r.id}','doanhThuChoThue',this.value)" ${canStaff?'':'disabled'}></td>
-                <td class="num"><input class="mini-input num" type="number" value="${r.chiPhiVanHanh}" onchange="bdsUpdateRow('${p.id}','${r.id}','chiPhiVanHanh',this.value)" ${canStaff?'':'disabled'}></td>
+                <td class="num"><input class="mini-input num money-input" type="text" inputmode="numeric" value="${fmtInputMoney(r.doanhThuChoThue)}" onchange="bdsUpdateRow('${p.id}','${r.id}','doanhThuChoThue',parseMoneyStr(this.value))" ${canStaff?'':'disabled'}></td>
+                <td class="num"><input class="mini-input num money-input" type="text" inputmode="numeric" value="${fmtInputMoney(r.chiPhiVanHanh)}" onchange="bdsUpdateRow('${p.id}','${r.id}','chiPhiVanHanh',parseMoneyStr(this.value))" ${canStaff?'':'disabled'}></td>
                 <td class="num" style="font-weight:600;color:${r.dongTienRong<0?'var(--danger)':'var(--success)'};">${fmtMoney(r.dongTienRong)}</td>
                 <td class="num">${fmtMoney(r.luyKeVanHanh)}</td>
                 <td>${canStaff?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:0.72rem;" onclick="bdsDeleteRow('${p.id}','${r.id}')">Xoá</button>`:''}</td>
@@ -3325,7 +3363,7 @@ function bdsDetailHtml(pid){
             ${rooms.length ? rooms.map(r=>`
               <tr>
                 <td><input class="mini-input" type="text" value="${escapeHtml(r.maPhong)}" onchange="bdsUpdateRoom('${p.id}','${r.id}','maPhong',this.value)" ${canStaff?'':'disabled'}></td>
-                <td class="num"><input class="mini-input num" type="number" value="${r.giaThue}" onchange="bdsUpdateRoom('${p.id}','${r.id}','giaThue',this.value)" ${canStaff?'':'disabled'}></td>
+                <td class="num"><input class="mini-input num money-input" type="text" inputmode="numeric" value="${fmtInputMoney(r.giaThue)}" onchange="bdsUpdateRoom('${p.id}','${r.id}','giaThue',parseMoneyStr(this.value))" ${canStaff?'':'disabled'}></td>
                 <td>
                   <select class="mini-input" onchange="bdsUpdateRoom('${p.id}','${r.id}','trangThai',this.value)" ${canStaff?'':'disabled'}>
                     <option value="trong" ${r.trangThai==='trong'?'selected':''}>Trống</option>
@@ -3367,7 +3405,7 @@ function openBdsDetail(pid){
 }
 function renderBdsDetailModal(pid){
   const card = document.querySelector('.modal-card');
-  if(card) card.innerHTML = bdsDetailHtml(pid);
+  if(card){ card.innerHTML = bdsDetailHtml(pid); initMoneyInputs(card); }
 }
 
 /* ---------- lịch tháng: thêm / sửa / xoá dòng ---------- */
@@ -3434,8 +3472,8 @@ function bdsOpenSaleForm(pid){
     <div class="modal-sub">Hệ thống tự trừ dư nợ ngân hàng còn lại tại thời điểm bán, tính lợi nhuận, ROI, IRR.</div>
     <div class="field"><label>Ngày bán</label><input type="date" id="bs_ngayBan" value="${p.ban&&p.ban.ngayBan?p.ban.ngayBan:todayStr()}"></div>
     <div class="two-col">
-      <div class="field"><label>Giá bán toàn bộ căn (đ)</label><input type="number" id="bs_giaBan" value="${p.ban?p.ban.giaBan||'':''}"></div>
-      <div class="field"><label>Chi phí bán (môi giới, thuế...) (đ)</label><input type="number" id="bs_chiPhiBan" value="${p.ban?p.ban.chiPhiBan||0:0}"></div>
+      <div class="field"><label>Giá bán toàn bộ căn (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bs_giaBan" value="${fmtInputMoney(p.ban?p.ban.giaBan||'':'')}"></div>
+      <div class="field"><label>Chi phí bán (môi giới, thuế...) (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bs_chiPhiBan" value="${fmtInputMoney(p.ban?p.ban.chiPhiBan||0:0)}"></div>
     </div>
     <div class="field"><label>Ghi chú</label><input type="text" id="bs_ghiChu" value="${p.ban?escapeHtml(p.ban.ghiChu||''):''}"></div>
     <div class="err-msg" id="bdsSaleErr"></div>
@@ -3448,8 +3486,8 @@ function bdsOpenSaleForm(pid){
 async function bdsSubmitSale(pid){
   const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
   const ngayBan = document.getElementById('bs_ngayBan').value;
-  const giaBan = Number(document.getElementById('bs_giaBan').value)||0;
-  const chiPhiBan = Number(document.getElementById('bs_chiPhiBan').value)||0;
+  const giaBan = moneyVal('bs_giaBan');
+  const chiPhiBan = moneyVal('bs_chiPhiBan');
   const ghiChu = document.getElementById('bs_ghiChu').value.trim();
   if(!ngayBan || !giaBan){ document.getElementById('bdsSaleErr').textContent='Nhập đủ Ngày bán và Giá bán.'; return; }
   p.ban = { daBan:true, ngayBan, giaBan, chiPhiBan, ghiChu };
