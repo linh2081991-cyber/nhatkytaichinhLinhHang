@@ -4092,7 +4092,7 @@ function renderBdsTab(){
         <div class="meta">${escapeHtml(p.diaChi||'—')}${p.soPhong?` · ${p.soPhong} phòng`:''}</div>
         <div class="kpi-mini-grid">
           <div><div class="k">Tổng CP công trình</div><div class="v">${fmtMoney(bdsTongCP(p))}</div></div>
-          <div><div class="k">Vốn tao góp${m.tyLeVonGop?` (${fmtPct(m.tyLeVonGop)})`:''}</div><div class="v">${fmtMoney(p.vonGop)}</div></div>
+          <div><div class="k">Vốn chủ tự góp${m.tyLeVonGop?` (${fmtPct(m.tyLeVonGop)})`:''}</div><div class="v">${fmtMoney(p.vonGop)}</div></div>
           <div><div class="k">Dòng tiền tháng gần nhất</div><div class="v ${thangGanNhat && thangGanNhat.dongTienRong<0?'neg':'pos'}">${thangGanNhat?fmtMoney(thangGanNhat.dongTienRong):'—'}</div></div>
           <div><div class="k">Dòng tiền vận hành lũy kế</div><div class="v ${m.dongTienVanHanhLuyKe<0?'neg':'pos'}">${fmtMoney(m.dongTienVanHanhLuyKe)}</div></div>
         </div>
@@ -4129,7 +4129,7 @@ function openBdsForm(id){
       <div class="field"><label>CP khác (pháp lý, nội thất...) (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_cpKhac" value="${fmtInputMoney(p?p.cpKhac:0)}" oninput="previewBdsVon()"></div>
     </div>
     <div class="detail-section" style="margin-top:6px;padding-top:10px;">
-      <h3>Vốn tao góp</h3>
+      <h3>Vốn chủ tự góp</h3>
       <div class="small-note">Số tiền thực tế mình bỏ vào dự án chung — thường chỉ là 1 phần nhỏ trong Tổng CP công trình ở trên.</div>
       <div class="two-col">
         <div class="field"><label>Số tiền vốn góp (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_vonGop" value="${fmtInputMoney(p?p.vonGop:0)}" oninput="previewBdsVon()"></div>
@@ -4172,7 +4172,7 @@ function previewBdsVon(){
   const tyLe = tongCP>0 ? (vonGop/tongCP*100) : 0;
   const vonTuBoRa = Math.max(0, vonGop - vonVay);
   document.getElementById('bdsVonPreview').textContent =
-    `Tổng CP công trình: ${fmtMoney(tongCP)} — Vốn tao góp: ${fmtMoney(vonGop)} (≈${fmtPct(tyLe)} tổng CP)${isVay?` — Vay NH: ${fmtMoney(vonVay)} — Vốn tự bỏ ra thực tế: ${fmtMoney(vonTuBoRa)}`:''}`;
+    `Tổng CP công trình: ${fmtMoney(tongCP)} — Vốn chủ tự góp: ${fmtMoney(vonGop)} (≈${fmtPct(tyLe)} tổng CP)${isVay?` — Vay NH: ${fmtMoney(vonVay)} — Vốn tự bỏ ra thực tế: ${fmtMoney(vonTuBoRa)}`:''}`;
 }
 async function submitBdsForm(id){
   const doiTac = document.getElementById('bp_doiTac').value.trim();
@@ -4232,7 +4232,7 @@ function bdsDetailHtml(pid){
 
     <div class="cards" style="margin:16px 0 4px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
       <div class="card"><div class="label">Tổng CP công trình (cả dự án)</div><div class="value">${fmtMoney(bdsTongCP(p))}</div></div>
-      <div class="card"><div class="label">Vốn tao góp (${fmtPct(m.tyLeVonGop)} tổng CP)</div><div class="value">${fmtMoney(p.vonGop)}</div></div>
+      <div class="card"><div class="label">Vốn chủ tự góp (${fmtPct(m.tyLeVonGop)} tổng CP)</div><div class="value">${fmtMoney(p.vonGop)}</div></div>
       <div class="card"><div class="label">Vốn tự bỏ ra thực tế</div><div class="value">${fmtMoney(m.vonTuCo)}</div></div>
       <div class="card ${m.dongTienVanHanhLuyKe<0?'danger':'ok'}"><div class="label">Dòng tiền vận hành lũy kế</div><div class="value">${fmtMoney(m.dongTienVanHanhLuyKe)}</div></div>
       ${isVayNH?`
@@ -4252,7 +4252,7 @@ function bdsDetailHtml(pid){
         <div class="k">Ngày khởi công</div><div class="v">${fmtDateVN(p.ngayKhoiCong)}</div>
         <div class="k">Ngày hoàn thành</div><div class="v">${fmtDateVN(p.ngayHoanThanh)}</div>
         <div class="k">CP đất / Xây dựng / Khác (cả dự án)</div><div class="v">${fmtMoney(p.cpDat)} / ${fmtMoney(p.cpXayDung)} / ${fmtMoney(p.cpKhac)}</div>
-        <div class="k">Vốn tao góp</div><div class="v" style="font-weight:700;">${fmtMoney(p.vonGop)} (≈${fmtPct(m.tyLeVonGop)} tổng CP công trình)</div>
+        <div class="k">Vốn chủ tự góp</div><div class="v" style="font-weight:700;">${fmtMoney(p.vonGop)} (≈${fmtPct(m.tyLeVonGop)} tổng CP công trình)</div>
         <div class="k">Nguồn vốn góp</div><div class="v">${isVayNH?'Vay ngân hàng':'Vốn tự có'}</div>
         ${isVayNH?`<div class="k">Số tiền vay NH / Ngày giải ngân</div><div class="v">${fmtMoney(p.vonVayNH)} · ${fmtDateVN(p.ngayGiaiNgan)}</div>`:''}
       </div>
