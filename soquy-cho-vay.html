@@ -895,24 +895,21 @@ function calcLaiTheoNam(loan){
   });
   return byYear;
 }
-/* ---------- Quản lý dòng tiền: phát hiện khách chậm đóng lãi ----------
-   So sánh "số kỳ lẽ ra phải thu tính đến hôm nay" (theo đúng lịch, đúng hình thức
-   đầu/cuối kỳ đã chọn) với "số kỳ thực tế đã thu" — chênh lệch dương = đang bị treo,
-   cần nhắc khách. Đây là số liệu để không bị thất thoát dòng tiền, không chỉ dựa vào
-   mỗi "Ngày đến hạn tiếp" (vốn chỉ báo được kỳ tiếp theo, không báo được đã treo bao nhiêu). */
-function calcSoKyLyThuyetDenHomNay(loan){
-  if(loan.tatToan) return 0;
-  return calcSoKyDaThuBanDau(loan.ngayBatDau, todayStr(), loan.chuKy, loan.hinhThucThuLai);
-}
-function calcTinhTrangDongLai(loan, soKyDaThu){
+/* ---------- Quản lý dòng tiền: nợ lãi treo ----------
+   KHÔNG tự suy luận "chậm bao nhiêu kỳ" từ chênh lệch ngày tháng nữa (cách cũ dễ sai khi
+   khách vay nhiều gói ngày khác nhau, hoặc đã đóng đủ nhưng lịch ngày lệch). Thay vào đó
+   dùng 1 trường dữ liệu tường minh: loan.noLaiTichLuy — tổng lãi đang nợ, chỉ tăng khi
+   người dùng chủ động "Ghi nợ kỳ này" (khách chưa có tiền đóng đúng hạn), và giảm dần khi
+   khách đóng tiền thật (bất kể đóng ngày nào, xem submitCollect). Số kỳ hiển thị chỉ là
+   ước lượng tham khảo (nợ ÷ lãi mỗi kỳ), không phải nguồn dữ liệu gốc. */
+function calcTinhTrangDongLai(loan){
   if(loan.tatToan) return { tinhTrang:'DA_TAT_TOAN', soKyCham:0, tienDangTre:0 };
+  const tienDangTre = Math.max(0, Number(loan.noLaiTichLuy||0));
   const laiKy = calcLaiKy(loan);
-  const soKyLyThuyet = calcSoKyLyThuyetDenHomNay(loan);
-  const soKyCham = Math.max(0, soKyLyThuyet - soKyDaThu);
-  const tienDangTre = soKyCham * laiKy;
+  const soKyCham = laiKy>0 ? Math.round(tienDangTre/laiKy) : 0;
   return {
-    tinhTrang: soKyCham>0 ? 'CHAM_LAI' : 'DUNG_HAN',
-    soKyLyThuyet, soKyCham, tienDangTre
+    tinhTrang: tienDangTre>0 ? 'CHAM_LAI' : 'DUNG_HAN',
+    soKyCham, tienDangTre
   };
 }
 function derive(loan){
@@ -921,7 +918,7 @@ function derive(loan){
   const trangThai = calcTrangThai(loan, settings.dueSoonDays||3);
   const denHanTiep = calcNgayDenHanTiep(loan);
   const soKyDaThu = (loan.lichSuThuLai||[]).reduce((s,x)=>s+Number(x.soKy||0),0);
-  const dongLai = calcTinhTrangDongLai(loan, soKyDaThu);
+  const dongLai = calcTinhTrangDongLai(loan);
   return {
     laiKy, laiSuatNam, trangThai, denHanTiep,
     tongSoNgayVay: calcTongSoNgayVay(loan),
@@ -1360,7 +1357,7 @@ function renderLoansList(){
         <td class="num">${fmtPct(d.laiSuatNam)}</td>
         <td>${fmtDateVN(l.ngayDongLaiGanNhat)}</td>
         <td>${fmtDateVN(d.denHanTiep)}</td>
-        <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>${d.tinhTrangDongLai==='CHAM_LAI'?`<span class="stamp danger" style="margin-left:4px;">Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ</span>`:''}</td>
+        <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>${d.tinhTrangDongLai==='CHAM_LAI'?`<span class="stamp danger" style="margin-left:4px;">Nợ lãi ≈${fmtInt(d.soKyChamThanhToan)} kỳ</span>`:''}</td>
       </tr>`;
   }).join('');
 
@@ -1375,7 +1372,7 @@ function renderLoansList(){
         <div class="meta"><span>Gốc: ${fmtMoney(l.tongTienGoc)}</span><span>${fmtPct(d.laiSuatNam)}/năm</span></div>
         <div class="meta"><span>Lãi/kỳ: ${fmtMoney(d.laiKy)}</span><span>Hạn: ${fmtDateVN(d.denHanTiep)}</span></div>
         <div class="meta"><span>Đóng lãi gần nhất: ${fmtDateVN(l.ngayDongLaiGanNhat)}</span></div>
-        ${d.tinhTrangDongLai==='CHAM_LAI'?`<div class="meta"><span style="color:var(--danger);font-weight:600;">Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ — treo ${fmtMoney(d.tienDangTre)}</span></div>`:''}
+        ${d.tinhTrangDongLai==='CHAM_LAI'?`<div class="meta"><span style="color:var(--danger);font-weight:600;">Đang nợ lãi ≈${fmtInt(d.soKyChamThanhToan)} kỳ — ${fmtMoney(d.tienDangTre)}</span></div>`:''}
       </div>`;
   }).join('');
 }
@@ -1766,6 +1763,8 @@ async function submitLoanForm(){
     ghiChu: document.getElementById('f_ghichu').value.trim(),
     lichSuThuLai: [],
     lyDoBienDongLai: [],
+    noLaiTichLuy: 0,
+    lichSuGhiNo: [],
     tatToan: false, ngayTatToan: null,
     createdAt: new Date().toISOString(), createdBy: currentUser
   };
@@ -1819,7 +1818,7 @@ function openLoanDetail(id){
       <div class="k">Tổng lãi đã thu</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
       ${!loan.tatToan ? `<div class="k">Tình trạng đóng lãi</div><div class="v" style="color:${d.tinhTrangDongLai==='CHAM_LAI'?'var(--danger)':'var(--success)'};">${
         d.tinhTrangDongLai==='CHAM_LAI'
-          ? `Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ — đang treo ${fmtMoney(d.tienDangTre)}`
+          ? `Đang nợ lãi ≈${fmtInt(d.soKyChamThanhToan)} kỳ — ${fmtMoney(d.tienDangTre)}`
           : 'Đúng hạn'
       }</div>` : ''}
       ${Object.entries(d.laiTheoNam).map(([y,v])=>`<div class="k">Lãi đã thu ${y}</div><div class="v">${fmtMoney(v)}</div>`).join('')}
@@ -1836,6 +1835,17 @@ function openLoanDetail(id){
         </div>`).join('') : '<div class="small-note">Chưa ghi nhận lần thu lãi nào.</div>'}
     </div>
 
+    ${(loan.noLaiTichLuy>0 || (loan.lichSuGhiNo||[]).length>0) ? `
+    <div class="detail-section">
+      <h3>Lịch sử nợ lãi</h3>
+      <div class="small-note">Ghi nợ = kỳ khách chưa có tiền đóng, coi như đã xử lý xong để lịch đến hạn không bị lệch. Trừ nợ = tiền khách đóng được ưu tiên trừ vào nợ trước.</div>
+      ${(loan.lichSuGhiNo||[]).length ? loan.lichSuGhiNo.slice().sort((a,b)=>String(b.ngay).localeCompare(String(a.ngay))).map(h=>`
+        <div class="history-row">
+          <span>${fmtDateVN(h.ngay)} · ${h.loai==='GHI_NO'?'Ghi nợ':'Trừ nợ'} · ${escapeHtml(h.nguoiThucHien||'—')}${h.ghiChu?` · <span class="small-note">${escapeHtml(h.ghiChu)}</span>`:''}</span>
+          <span class="amt" style="color:${h.soTien<0?'var(--success)':'var(--danger)'};">${h.soTien<0?'−':'+'}${fmtMoney(Math.abs(h.soTien))}</span>
+        </div>`).join('') : '<div class="small-note">Chưa có lần ghi nợ nào.</div>'}
+    </div>` : ''}
+
     ${rateLog.length?`
     <div class="detail-section">
       <h3>Lịch sử điều chỉnh lãi suất</h3>
@@ -1851,6 +1861,7 @@ function openLoanDetail(id){
       ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-outline" onclick="openEditLoanForm('${loan.id}')">Sửa thông tin</button>`:''}
       ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-danger" onclick="askSettleLoan('${loan.id}')">Tất toán</button>`:''}
       ${roleAtLeast('admin')?`<button class="btn btn-ghost" onclick="askDeleteLoan('${loan.id}')">Xoá</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-outline" onclick="openGhiNoForm('${loan.id}')">Ghi nợ kỳ này</button>`:''}
       ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-primary" onclick="openCollectForm('${loan.id}')">Ghi nhận thu lãi</button>`:''}
     </div>
   `);
@@ -1890,11 +1901,55 @@ async function submitCollect(id){
   if(!ngay || !sotien){ showToast('Điền đủ ngày thu và số tiền.'); return; }
   loan.lichSuThuLai.push({ id:uid(), ngayThu:ngay, soKy:soky, soTien:sotien, ghiChu:ghichu, nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
   loan.ngayDongLaiGanNhat = ngay;
+  if((loan.noLaiTichLuy||0) > 0){
+    const truNo = Math.min(sotien, loan.noLaiTichLuy);
+    loan.noLaiTichLuy = loan.noLaiTichLuy - truNo;
+    loan.lichSuGhiNo = loan.lichSuGhiNo || [];
+    loan.lichSuGhiNo.push({ id:uid(), ngay, soTien:-truNo, loai:'TRA_NO', ghiChu:`Trừ vào nợ lãi từ lần thu ${fmtMoney(sotien)}`, nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  }
   await saveLoans();
   await addCashTx({type:TX_TYPE.THU_LAI, amount:sotien, ngay:ngay, loanId:loan.id, khachHang:loan.tenKhachHang, ghiChu:ghichu||`Thu lãi ${soky} kỳ`});
   await logActivity('Ghi nhận thu lãi', `${loan.tenKhachHang} — ${fmtMoney(sotien)} (${soky} kỳ)`);
   closeModal(); renderAll();
   showToast('Đã ghi nhận thu lãi.');
+}
+
+/* ---------- Ghi nợ lãi (khách chưa có tiền đóng đúng kỳ) ---------- */
+function openGhiNoForm(id){
+  if(!requireUser()) return;
+  if(!requireRole('staff')) return;
+  const loan = loans.find(l=>l.id===id);
+  const laiKy = calcLaiKy(loan);
+  const denHan = calcNgayDenHanTiep(loan) || todayStr();
+  openModal(`
+    <h2>Ghi nợ lãi kỳ này — ${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="modal-sub">Dùng khi khách chưa có tiền đóng đúng kỳ. Hệ thống cộng dồn vào "Tổng lãi đang nợ" và coi kỳ này đã xử lý xong để ngày đến hạn tiếp theo không bị lệch — không phát sinh dòng tiền thực vào Sổ quỹ.</div>
+    <div class="two-col">
+      <div class="field"><label>Ngày ghi nợ (kỳ đến hạn)</label><input type="date" id="gn_ngay" value="${denHan}"></div>
+      <div class="field"><label>Số tiền lãi kỳ này</label><input type="text" inputmode="numeric" class="money-input" id="gn_sotien" value="${fmtInputMoney(laiKy)}"></div>
+    </div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="gn_ghichu" placeholder="VD: khách hẹn đóng cuối tháng..."></div>
+    <div class="small-note">Tổng lãi đang nợ hiện tại: ${fmtMoney(loan.noLaiTichLuy||0)}.</div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-danger" onclick="submitGhiNo('${id}')">Xác nhận ghi nợ</button>
+    </div>
+  `);
+}
+async function submitGhiNo(id){
+  const loan = loans.find(l=>l.id===id);
+  const ngay = document.getElementById('gn_ngay').value || todayStr();
+  const sotien = moneyVal('gn_sotien');
+  const ghichu = document.getElementById('gn_ghichu').value.trim();
+  if(!ngay || !sotien){ showToast('Điền đủ ngày và số tiền lãi kỳ này.'); return; }
+  loan.noLaiTichLuy = (loan.noLaiTichLuy||0) + sotien;
+  loan.lichSuGhiNo = loan.lichSuGhiNo || [];
+  loan.lichSuGhiNo.push({ id:uid(), ngay, soTien:sotien, loai:'GHI_NO', ghiChu:ghichu||'Ghi nợ lãi kỳ chưa đóng', nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  loan.ngayDongLaiGanNhat = ngay;
+  await saveLoans();
+  await logActivity('Ghi nợ lãi', `${loan.tenKhachHang} — +${fmtMoney(sotien)} (tổng đang nợ ${fmtMoney(loan.noLaiTichLuy)})`);
+  closeModal(); renderAll();
+  showToast('Đã ghi nhận nợ lãi kỳ này.');
 }
 
 /* ---------- Edit loan (admin-gated for sensitive fields) ---------- */
@@ -2671,7 +2726,7 @@ function renderExternalLoansTab(){
         <td class="num">${fmtPct(d.laiSuatNam)}</td>
         <td>${fmtDateVN(l.ngayDongLaiGanNhat)}</td>
         <td>${fmtDateVN(d.denHanTiep)}</td>
-        <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>${d.tinhTrangDongLai==='CHAM_LAI'?`<span class="stamp danger" style="margin-left:4px;">Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ</span>`:''}</td>
+        <td><span class="stamp ${stampClass(d.trangThai)}">${STATUS_LABEL[d.trangThai]}</span>${d.tinhTrangDongLai==='CHAM_LAI'?`<span class="stamp danger" style="margin-left:4px;">Nợ lãi ≈${fmtInt(d.soKyChamThanhToan)} kỳ</span>`:''}</td>
       </tr>`;
   }).join('');
   cardsWrap.innerHTML = list.map(l=>{
@@ -2685,7 +2740,7 @@ function renderExternalLoansTab(){
         <div class="meta"><span>Gốc: ${fmtMoney(l.tongTienGoc)}</span><span>${fmtPct(d.laiSuatNam)}/năm</span></div>
         <div class="meta"><span>Lãi/kỳ: ${fmtMoney(d.laiKy)}</span><span>Hạn: ${fmtDateVN(d.denHanTiep)}</span></div>
         <div class="meta"><span>Trả lãi gần nhất: ${fmtDateVN(l.ngayDongLaiGanNhat)}</span></div>
-        ${d.tinhTrangDongLai==='CHAM_LAI'?`<div class="meta"><span style="color:var(--danger);font-weight:600;">Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ — treo ${fmtMoney(d.tienDangTre)}</span></div>`:''}
+        ${d.tinhTrangDongLai==='CHAM_LAI'?`<div class="meta"><span style="color:var(--danger);font-weight:600;">Đang nợ lãi ≈${fmtInt(d.soKyChamThanhToan)} kỳ — ${fmtMoney(d.tienDangTre)}</span></div>`:''}
       </div>`;
   }).join('');
 }
@@ -2774,7 +2829,7 @@ async function submitExternalLoanForm(){
     chuKy: chuky, ngayBatDau: ngaybd, ngayDongLaiGanNhat: ngayTraLai,
     tienLaiNoCu: moneyVal('x_noCu'),
     ghiChu: document.getElementById('x_ghichu').value.trim(),
-    lichSuThuLai: [], lyDoBienDongLai: [], tatToan:false, ngayTatToan:null,
+    lichSuThuLai: [], lyDoBienDongLai: [], noLaiTichLuy: 0, lichSuGhiNo: [], tatToan:false, ngayTatToan:null,
     createdAt: new Date().toISOString(), createdBy: currentUser
   };
   const laiKy = calcLaiKy(ext);
@@ -2820,7 +2875,7 @@ function openExternalLoanDetail(id){
       <div class="k">Số kỳ đã trả</div><div class="v">${fmtInt(d.soKyDaThu)}</div>
       <div class="k">Tổng lãi đã trả</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
       ${!loan.tatToan ? `<div class="k">Tình trạng trả lãi</div><div class="v" style="color:${d.tinhTrangDongLai==='CHAM_LAI'?'var(--danger)':'var(--success)'};">${
-        d.tinhTrangDongLai==='CHAM_LAI' ? `Chậm ${fmtInt(d.soKyChamThanhToan)} kỳ — đang treo ${fmtMoney(d.tienDangTre)}` : 'Đúng hạn'
+        d.tinhTrangDongLai==='CHAM_LAI' ? `Đang nợ lãi ≈${fmtInt(d.soKyChamThanhToan)} kỳ — ${fmtMoney(d.tienDangTre)}` : 'Đúng hạn'
       }</div>` : ''}
       ${Object.entries(d.laiTheoNam).map(([y,v])=>`<div class="k">Lãi đã trả ${y}</div><div class="v">${fmtMoney(v)}</div>`).join('')}
       ${loan.tienLaiNoCu?`<div class="k">Tiền lãi nợ cũ</div><div class="v">${fmtMoney(loan.tienLaiNoCu)}</div>`:''}
@@ -2835,6 +2890,17 @@ function openExternalLoanDetail(id){
           <span class="amt" style="color:var(--danger);">${fmtMoney(h.soTien)}</span>
         </div>`).join('') : '<div class="small-note">Chưa ghi nhận lần trả lãi nào.</div>'}
     </div>
+
+    ${(loan.noLaiTichLuy>0 || (loan.lichSuGhiNo||[]).length>0) ? `
+    <div class="detail-section">
+      <h3>Lịch sử nợ lãi</h3>
+      <div class="small-note">Ghi nợ = kỳ chưa có tiền trả bên cho vay, coi như đã xử lý xong để ngày đến hạn không bị lệch. Trừ nợ = tiền trả được ưu tiên trừ vào nợ trước.</div>
+      ${(loan.lichSuGhiNo||[]).length ? loan.lichSuGhiNo.slice().sort((a,b)=>String(b.ngay).localeCompare(String(a.ngay))).map(h=>`
+        <div class="history-row">
+          <span>${fmtDateVN(h.ngay)} · ${h.loai==='GHI_NO'?'Ghi nợ':'Trừ nợ'} · ${escapeHtml(h.nguoiThucHien||'—')}${h.ghiChu?` · <span class="small-note">${escapeHtml(h.ghiChu)}</span>`:''}</span>
+          <span class="amt" style="color:${h.soTien<0?'var(--success)':'var(--danger)'};">${h.soTien<0?'−':'+'}${fmtMoney(Math.abs(h.soTien))}</span>
+        </div>`).join('') : '<div class="small-note">Chưa có lần ghi nợ nào.</div>'}
+    </div>` : ''}
 
     ${rateLog.length?`
     <div class="detail-section">
@@ -2851,6 +2917,7 @@ function openExternalLoanDetail(id){
       ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-outline" onclick="openEditExternalLoanForm('${loan.id}')">Sửa thông tin</button>`:''}
       ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-danger" onclick="askSettleExternalLoan('${loan.id}')">Tất toán (trả hết)</button>`:''}
       ${roleAtLeast('admin')?`<button class="btn btn-ghost" onclick="askDeleteExternalLoan('${loan.id}')">Xoá</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-outline" onclick="openGhiNoExternalForm('${loan.id}')">Ghi nợ kỳ này</button>`:''}
       ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-primary" onclick="openExtCollectForm('${loan.id}')">Ghi nhận trả lãi</button>`:''}
     </div>
   `);
@@ -2890,11 +2957,55 @@ async function submitExtCollect(id){
   if(!ngay || !sotien){ showToast('Điền đủ ngày trả và số tiền.'); return; }
   loan.lichSuThuLai.push({ id:uid(), ngayThu:ngay, soKy:soky, soTien:sotien, ghiChu:ghichu, nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
   loan.ngayDongLaiGanNhat = ngay;
+  if((loan.noLaiTichLuy||0) > 0){
+    const truNo = Math.min(sotien, loan.noLaiTichLuy);
+    loan.noLaiTichLuy = loan.noLaiTichLuy - truNo;
+    loan.lichSuGhiNo = loan.lichSuGhiNo || [];
+    loan.lichSuGhiNo.push({ id:uid(), ngay, soTien:-truNo, loai:'TRA_NO', ghiChu:`Trừ vào nợ lãi từ lần trả ${fmtMoney(sotien)}`, nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  }
   await saveExternalLoans();
   await addCashTx({type:TX_TYPE.VAY_NGOAI_TRA_LAI, amount:sotien, ngay:ngay, loanId:loan.id, khachHang:loan.tenKhachHang, ghiChu:ghichu||`Trả lãi ${soky} kỳ`});
   await logActivity('Ghi nhận trả lãi vay ngoài', `${loan.tenKhachHang} — ${fmtMoney(sotien)} (${soky} kỳ)`);
   closeModal(); renderFinanceTab();
   showToast('Đã ghi nhận trả lãi.');
+}
+
+/* ---------- Ghi nợ lãi vay ngoài (chưa có tiền trả bên cho vay) ---------- */
+function openGhiNoExternalForm(id){
+  if(!requireUser()) return;
+  if(!requireRole('staff')) return;
+  const loan = externalLoans.find(l=>l.id===id);
+  const laiKy = calcLaiKy(loan);
+  const denHan = calcNgayDenHanTiep(loan) || todayStr();
+  openModal(`
+    <h2>Ghi nợ lãi kỳ này — ${escapeHtml(loan.tenKhachHang)}</h2>
+    <div class="modal-sub">Dùng khi chưa có tiền trả đúng kỳ. Hệ thống cộng dồn vào "Tổng lãi đang nợ" và coi kỳ này đã xử lý xong để ngày đến hạn tiếp theo không bị lệch — không phát sinh dòng tiền thực vào Sổ quỹ.</div>
+    <div class="two-col">
+      <div class="field"><label>Ngày ghi nợ (kỳ đến hạn)</label><input type="date" id="gnx_ngay" value="${denHan}"></div>
+      <div class="field"><label>Số tiền lãi kỳ này</label><input type="text" inputmode="numeric" class="money-input" id="gnx_sotien" value="${fmtInputMoney(laiKy)}"></div>
+    </div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="gnx_ghichu" placeholder="VD: hẹn trả cuối tháng..."></div>
+    <div class="small-note">Tổng lãi đang nợ hiện tại: ${fmtMoney(loan.noLaiTichLuy||0)}.</div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openExternalLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-danger" onclick="submitGhiNoExternal('${id}')">Xác nhận ghi nợ</button>
+    </div>
+  `);
+}
+async function submitGhiNoExternal(id){
+  const loan = externalLoans.find(l=>l.id===id);
+  const ngay = document.getElementById('gnx_ngay').value || todayStr();
+  const sotien = moneyVal('gnx_sotien');
+  const ghichu = document.getElementById('gnx_ghichu').value.trim();
+  if(!ngay || !sotien){ showToast('Điền đủ ngày và số tiền lãi kỳ này.'); return; }
+  loan.noLaiTichLuy = (loan.noLaiTichLuy||0) + sotien;
+  loan.lichSuGhiNo = loan.lichSuGhiNo || [];
+  loan.lichSuGhiNo.push({ id:uid(), ngay, soTien:sotien, loai:'GHI_NO', ghiChu:ghichu||'Ghi nợ lãi kỳ chưa trả', nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  loan.ngayDongLaiGanNhat = ngay;
+  await saveExternalLoans();
+  await logActivity('Ghi nợ lãi vay ngoài', `${loan.tenKhachHang} — +${fmtMoney(sotien)} (tổng đang nợ ${fmtMoney(loan.noLaiTichLuy)})`);
+  closeModal(); renderFinanceTab();
+  showToast('Đã ghi nhận nợ lãi kỳ này.');
 }
 
 /* ---------- Sửa / đổi lãi suất khoản vay ngoài ---------- */
