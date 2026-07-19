@@ -912,17 +912,26 @@ function calcTinhTrangDongLai(loan){
     soKyCham, tienDangTre
   };
 }
+/* Số kỳ đã thu tính theo thời gian thực (không phụ thuộc việc nhập tay từng lần thu):
+   dựa vào Ngày vay -> Ngày đóng lãi gần nhất, Chu kỳ, và hình thức Đầu kỳ/Cuối kỳ.
+   Vì "Ngày đóng lãi gần nhất" luôn được cập nhật dù thu tiền thật hay chỉ Ghi nợ, số kỳ
+   này phản ánh đúng số kỳ đã tới hạn xử lý. Số tiền lãi đã thu (gross) = số kỳ x lãi/kỳ.
+   Số tiền thực thu = số tiền lãi đã thu (gross) - số lãi khách đang còn nợ. */
 function derive(loan){
   const laiKy = calcLaiKy(loan);
   const laiSuatNam = calcLaiSuatNam(loan);
   const trangThai = calcTrangThai(loan, settings.dueSoonDays||3);
   const denHanTiep = calcNgayDenHanTiep(loan);
-  const soKyDaThu = (loan.lichSuThuLai||[]).reduce((s,x)=>s+Number(x.soKy||0),0);
+  const soKyDaThu = calcSoKyDaThuBanDau(loan.ngayBatDau, loan.ngayDongLaiGanNhat, loan.chuKy, loan.hinhThucThuLai);
+  const soTienLaiPhatSinh = soKyDaThu * laiKy;
   const dongLai = calcTinhTrangDongLai(loan);
+  const soTienThucThu = Math.max(0, soTienLaiPhatSinh - dongLai.tienDangTre);
   return {
     laiKy, laiSuatNam, trangThai, denHanTiep,
     tongSoNgayVay: calcTongSoNgayVay(loan),
     soKyDaThu,
+    soTienLaiPhatSinh,
+    soTienThucThu,
     tongLaiDaThu: calcTongLaiDaThu(loan),
     laiTheoNam: calcLaiTheoNam(loan),
     tinhTrangDongLai: dongLai.tinhTrang,
@@ -1814,8 +1823,10 @@ function openLoanDetail(id){
       <div class="k">Hình thức thu lãi</div><div class="v">${loan.hinhThucThuLai==='dau'?'Đầu kỳ (thu trước)':'Cuối kỳ (thu sau)'}</div>
       <div class="k">Ngày đến hạn tiếp</div><div class="v">${fmtDateVN(d.denHanTiep)}</div>
       <div class="k">Tổng số ngày vay</div><div class="v">${fmtInt(d.tongSoNgayVay)}</div>
-      <div class="k">Số kỳ đã thu</div><div class="v">${fmtInt(d.soKyDaThu)}</div>
-      <div class="k">Tổng lãi đã thu</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
+      <div class="k">Số kỳ đã thu (theo lịch)</div><div class="v">${fmtInt(d.soKyDaThu)}</div>
+      <div class="k">Lãi phát sinh theo lịch</div><div class="v">${fmtMoney(d.soTienLaiPhatSinh)}</div>
+      <div class="k">Số tiền thực thu</div><div class="v" style="font-weight:700;">${fmtMoney(d.soTienThucThu)}</div>
+      <div class="k">Tổng lãi đã thu (sổ quỹ)</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
       ${!loan.tatToan ? `<div class="k">Tình trạng đóng lãi</div><div class="v" style="color:${d.tinhTrangDongLai==='CHAM_LAI'?'var(--danger)':'var(--success)'};">${
         d.tinhTrangDongLai==='CHAM_LAI'
           ? `Đang nợ lãi ≈${fmtInt(d.soKyChamThanhToan)} kỳ — ${fmtMoney(d.tienDangTre)}`
@@ -2872,8 +2883,10 @@ function openExternalLoanDetail(id){
       <div class="k">Hình thức trả lãi</div><div class="v">${loan.hinhThucThuLai==='dau'?'Đầu kỳ (trả trước)':'Cuối kỳ (trả sau)'}</div>
       <div class="k">Ngày đến hạn trả tiếp</div><div class="v">${fmtDateVN(d.denHanTiep)}</div>
       <div class="k">Tổng số ngày vay</div><div class="v">${fmtInt(d.tongSoNgayVay)}</div>
-      <div class="k">Số kỳ đã trả</div><div class="v">${fmtInt(d.soKyDaThu)}</div>
-      <div class="k">Tổng lãi đã trả</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
+      <div class="k">Số kỳ đã trả (theo lịch)</div><div class="v">${fmtInt(d.soKyDaThu)}</div>
+      <div class="k">Lãi phát sinh theo lịch</div><div class="v">${fmtMoney(d.soTienLaiPhatSinh)}</div>
+      <div class="k">Số tiền thực trả</div><div class="v" style="font-weight:700;">${fmtMoney(d.soTienThucThu)}</div>
+      <div class="k">Tổng lãi đã trả (sổ quỹ)</div><div class="v">${fmtMoney(d.tongLaiDaThu)}</div>
       ${!loan.tatToan ? `<div class="k">Tình trạng trả lãi</div><div class="v" style="color:${d.tinhTrangDongLai==='CHAM_LAI'?'var(--danger)':'var(--success)'};">${
         d.tinhTrangDongLai==='CHAM_LAI' ? `Đang nợ lãi ≈${fmtInt(d.soKyChamThanhToan)} kỳ — ${fmtMoney(d.tienDangTre)}` : 'Đúng hạn'
       }</div>` : ''}
