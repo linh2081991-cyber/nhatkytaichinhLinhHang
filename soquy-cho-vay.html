@@ -3988,8 +3988,21 @@ function addMonthsToStr(dateStr, months){
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+/* Bài toán thực tế: đây là dự án GÓP VỐN chung với đối tác (vd. anh Tuấn béo) — mình không bỏ toàn
+   bộ chi phí công trình mà chỉ góp 1 phần nhỏ (vonGop) trong Tổng CP công trình (tongCP). Từ đây:
+   - vonVayNH KHÔNG còn là khoản vay cho toàn bộ công trình, mà là khoản vay ngân hàng CÁ NHÂN dùng
+     để có tiền góp vốn (chỉ có ý nghĩa khi nguonVonGop==='vay_nh').
+   - "Vốn tự có" = phần tiền thực sự bỏ túi ra góp, sau khi trừ đi phần đã vay ngân hàng. */
 function bdsTongCP(p){ return Number(p.cpDat||0)+Number(p.cpXayDung||0)+Number(p.cpKhac||0); }
-function bdsVonTuCo(p){ return bdsTongCP(p) - Number(p.vonVayNH||0); }
+function bdsVonTuCo(p){
+  const vonGop = Number(p.vonGop||0);
+  if(p.nguonVonGop==='vay_nh') return Math.max(0, vonGop - Number(p.vonVayNH||0));
+  return vonGop;
+}
+function bdsTyLeVonGop(p){
+  const tongCP = bdsTongCP(p);
+  return tongCP>0 ? (Number(p.vonGop||0)/tongCP*100) : 0;
+}
 
 /* Chuẩn kế toán: Lãi vay = Dư nợ gốc đầu kỳ × Lãi suất năm ÷ 365 × Số ngày thực tế kỳ đó (ACT/365) */
 function bdsRecalcSchedule(p){
@@ -4050,7 +4063,8 @@ function bdsComputeMetrics(p){
   }
   let thangHoaVon = null;
   for(const r of rows){ if(r.luyKeVanHanh >= vonTuCo){ thangHoaVon = r.ky; break; } }
-  return { tongLaiNH, tongThuThue, tongChiVanHanh, dongTienVanHanhLuyKe, duNoConLai, vonTuCo, tienVeKhiBan, loiNhuan, roi, irr, thangHoaVon };
+  return { tongLaiNH, tongThuThue, tongChiVanHanh, dongTienVanHanhLuyKe, duNoConLai, vonTuCo,
+    tyLeVonGop: bdsTyLeVonGop(p), tienVeKhiBan, loiNhuan, roi, irr, thangHoaVon };
 }
 
 /* ---------- render danh sách dự án ---------- */
@@ -4078,7 +4092,7 @@ function renderBdsTab(){
         <div class="meta">${escapeHtml(p.diaChi||'—')}${p.soPhong?` · ${p.soPhong} phòng`:''}</div>
         <div class="kpi-mini-grid">
           <div><div class="k">Tổng CP công trình</div><div class="v">${fmtMoney(bdsTongCP(p))}</div></div>
-          <div><div class="k">Vốn vay VIB</div><div class="v">${fmtMoney(p.vonVayNH)}</div></div>
+          <div><div class="k">Vốn tao góp${m.tyLeVonGop?` (${fmtPct(m.tyLeVonGop)})`:''}</div><div class="v">${fmtMoney(p.vonGop)}</div></div>
           <div><div class="k">Dòng tiền tháng gần nhất</div><div class="v ${thangGanNhat && thangGanNhat.dongTienRong<0?'neg':'pos'}">${thangGanNhat?fmtMoney(thangGanNhat.dongTienRong):'—'}</div></div>
           <div><div class="k">Dòng tiền vận hành lũy kế</div><div class="v ${m.dongTienVanHanhLuyKe<0?'neg':'pos'}">${fmtMoney(m.dongTienVanHanhLuyKe)}</div></div>
         </div>
@@ -4092,10 +4106,11 @@ function openBdsForm(id){
   if(!requireUser()) return;
   if(!requireRole('staff')) return;
   const p = id ? bdsProjects.find(x=>x.id===id) : null;
+  const nguonVon = p ? (p.nguonVonGop||'tu_co') : 'tu_co';
   openModal(`
     <h2>${p?'Sửa dự án BDS':'Thêm dự án Đầu tư BDS'}</h2>
-    <div class="modal-sub">Vốn vay ngân hàng đầu tư công trình — dòng tiền cho thuê/bán nhập chi tiết sau khi lưu.</div>
-    <div class="field"><label>Đối tác góp vốn / Tên dự án</label><input type="text" id="bp_doiTac" value="${p?escapeHtml(p.doiTac):''}" placeholder="VD: Hoàng Minh Tuấn"></div>
+    <div class="modal-sub">Dự án góp vốn chung với đối tác — mình chỉ góp 1 phần trong Tổng CP công trình, không bỏ toàn bộ.</div>
+    <div class="field"><label>Đối tác góp vốn / Tên dự án</label><input type="text" id="bp_doiTac" value="${p?escapeHtml(p.doiTac):''}" placeholder="VD: Tuấn béo"></div>
     <div class="field"><label>Địa chỉ công trình</label><input type="text" id="bp_diaChi" value="${p?escapeHtml(p.diaChi||''):''}"></div>
     <div class="two-col">
       <div class="field"><label>Loại hình</label><input type="text" id="bp_loaiHinh" value="${p?escapeHtml(p.loaiHinh||'Nhà CCMN'):'Nhà CCMN'}"></div>
@@ -4106,7 +4121,7 @@ function openBdsForm(id){
       <div class="field"><label>Ngày hoàn thành (dự kiến/thực tế)</label><input type="date" id="bp_ngayHoanThanh" value="${p?p.ngayHoanThanh||'':''}"></div>
     </div>
     <div class="detail-section" style="margin-top:6px;padding-top:10px;">
-      <h3>Chi phí toàn bộ công trình</h3>
+      <h3>Tổng chi phí công trình (toàn bộ căn, không chỉ phần của tôi)</h3>
       <div class="two-col">
         <div class="field"><label>CP đất (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_cpDat" value="${fmtInputMoney(p?p.cpDat:0)}" oninput="previewBdsVon()"></div>
         <div class="field"><label>CP xây dựng (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_cpXayDung" value="${fmtInputMoney(p?p.cpXayDung:0)}" oninput="previewBdsVon()"></div>
@@ -4114,12 +4129,23 @@ function openBdsForm(id){
       <div class="field"><label>CP khác (pháp lý, nội thất...) (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_cpKhac" value="${fmtInputMoney(p?p.cpKhac:0)}" oninput="previewBdsVon()"></div>
     </div>
     <div class="detail-section" style="margin-top:6px;padding-top:10px;">
-      <h3>Cơ cấu vốn vay ngân hàng</h3>
+      <h3>Vốn tao góp</h3>
+      <div class="small-note">Số tiền thực tế mình bỏ vào dự án chung — thường chỉ là 1 phần nhỏ trong Tổng CP công trình ở trên.</div>
       <div class="two-col">
-        <div class="field"><label>Vốn vay ngân hàng (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_vonVay" value="${fmtInputMoney(p?p.vonVayNH:0)}" oninput="previewBdsVon()"></div>
+        <div class="field"><label>Số tiền vốn góp (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_vonGop" value="${fmtInputMoney(p?p.vonGop:0)}" oninput="previewBdsVon()"></div>
+        <div class="field">
+          <label>Nguồn vốn góp</label>
+          <select id="bp_nguonVon" onchange="onBdsNguonVonChange()">
+            <option value="tu_co" ${nguonVon==='tu_co'?'selected':''}>Vốn tự có</option>
+            <option value="vay_nh" ${nguonVon==='vay_nh'?'selected':''}>Vay ngân hàng</option>
+          </select>
+        </div>
+      </div>
+      <div class="two-col ${nguonVon==='vay_nh'?'':'hidden'}" id="bp_vaynh_wrap">
+        <div class="field"><label>Số tiền vay ngân hàng (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_vonVay" value="${fmtInputMoney(p?p.vonVayNH:0)}" oninput="previewBdsVon()"></div>
         <div class="field"><label>Ngày giải ngân</label><input type="date" id="bp_ngayGiaiNgan" value="${p?p.ngayGiaiNgan||'':''}"></div>
       </div>
-      <div class="preview-line" id="bdsVonPreview">Vốn tự có: —</div>
+      <div class="preview-line" id="bdsVonPreview">—</div>
     </div>
     <div class="field" style="margin-top:6px;"><label>Ghi chú</label><input type="text" id="bp_ghiChu" value="${p?escapeHtml(p.ghiChu||''):''}"></div>
     <div class="err-msg" id="bdsFormErr"></div>
@@ -4130,18 +4156,29 @@ function openBdsForm(id){
   `);
   previewBdsVon();
 }
+function onBdsNguonVonChange(){
+  const isVay = document.getElementById('bp_nguonVon').value==='vay_nh';
+  document.getElementById('bp_vaynh_wrap').classList.toggle('hidden', !isVay);
+  previewBdsVon();
+}
 function previewBdsVon(){
   const cpDat = moneyVal('bp_cpDat');
   const cpXayDung = moneyVal('bp_cpXayDung');
   const cpKhac = moneyVal('bp_cpKhac');
-  const vonVay = moneyVal('bp_vonVay');
+  const vonGop = moneyVal('bp_vonGop');
+  const isVay = document.getElementById('bp_nguonVon').value==='vay_nh';
+  const vonVay = isVay ? moneyVal('bp_vonVay') : 0;
   const tongCP = cpDat+cpXayDung+cpKhac;
-  document.getElementById('bdsVonPreview').textContent = `Tổng CP công trình: ${fmtMoney(tongCP)}  —  Vốn tự có cần bỏ: ${fmtMoney(tongCP-vonVay)}`;
+  const tyLe = tongCP>0 ? (vonGop/tongCP*100) : 0;
+  const vonTuBoRa = Math.max(0, vonGop - vonVay);
+  document.getElementById('bdsVonPreview').textContent =
+    `Tổng CP công trình: ${fmtMoney(tongCP)} — Vốn tao góp: ${fmtMoney(vonGop)} (≈${fmtPct(tyLe)} tổng CP)${isVay?` — Vay NH: ${fmtMoney(vonVay)} — Vốn tự bỏ ra thực tế: ${fmtMoney(vonTuBoRa)}`:''}`;
 }
 async function submitBdsForm(id){
   const doiTac = document.getElementById('bp_doiTac').value.trim();
   const err = document.getElementById('bdsFormErr');
   if(!doiTac){ err.textContent='Nhập tên đối tác / dự án.'; return; }
+  const nguonVonGop = document.getElementById('bp_nguonVon').value;
   const data = {
     doiTac,
     diaChi: document.getElementById('bp_diaChi').value.trim(),
@@ -4152,8 +4189,10 @@ async function submitBdsForm(id){
     cpDat: moneyVal('bp_cpDat'),
     cpXayDung: moneyVal('bp_cpXayDung'),
     cpKhac: moneyVal('bp_cpKhac'),
-    vonVayNH: moneyVal('bp_vonVay'),
-    ngayGiaiNgan: document.getElementById('bp_ngayGiaiNgan').value,
+    vonGop: moneyVal('bp_vonGop'),
+    nguonVonGop: nguonVonGop,
+    vonVayNH: nguonVonGop==='vay_nh' ? moneyVal('bp_vonVay') : 0,
+    ngayGiaiNgan: nguonVonGop==='vay_nh' ? document.getElementById('bp_ngayGiaiNgan').value : '',
     ghiChu: document.getElementById('bp_ghiChu').value.trim()
   };
   let p;
@@ -4161,7 +4200,7 @@ async function submitBdsForm(id){
     p = bdsProjects.find(x=>x.id===id);
     Object.assign(p, data);
   }else{
-    p = Object.assign({ id:uid(), trangThai:BDS_STATUS.XAY_DUNG, lichThang:[], phong:[], ban:{daBan:false}, createdAt:new Date().toISOString(), createdBy:currentUser }, data);
+    p = Object.assign({ id:uid(), trangThai:BDS_STATUS.XAY_DUNG, lichThang:[], choThueNguyenCan:{}, ban:{daBan:false}, createdAt:new Date().toISOString(), createdBy:currentUser }, data);
     bdsProjects.push(p);
   }
   bdsRecalcSchedule(p);
@@ -4172,13 +4211,15 @@ async function submitBdsForm(id){
   showToast(id?'Đã lưu thay đổi.':'Đã tạo dự án đầu tư BDS mới.');
 }
 
+
 /* ---------- chi tiết dự án: công trình, lịch lãi vay, cho thuê, bán ---------- */
 function bdsDetailHtml(pid){
   const p = bdsProjects.find(x=>x.id===pid);
   if(!p) return `<div>Không tìm thấy dự án.</div><div class="modal-close-row"><button class="btn btn-ghost" onclick="closeModal()">Đóng</button></div>`;
   const m = bdsComputeMetrics(p);
   const rows = p.lichThang||[];
-  const rooms = p.phong||[];
+  const thue = p.choThueNguyenCan||{};
+  const isVayNH = p.nguonVonGop==='vay_nh';
   const canStaff = roleAtLeast('staff');
   return `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
@@ -4190,26 +4231,30 @@ function bdsDetailHtml(pid){
     </div>
 
     <div class="cards" style="margin:16px 0 4px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
-      <div class="card"><div class="label">Tổng CP công trình</div><div class="value">${fmtMoney(bdsTongCP(p))}</div></div>
-      <div class="card"><div class="label">Vốn vay ngân hàng</div><div class="value">${fmtMoney(p.vonVayNH)}</div></div>
-      <div class="card"><div class="label">Vốn tự có</div><div class="value">${fmtMoney(m.vonTuCo)}</div></div>
+      <div class="card"><div class="label">Tổng CP công trình (cả dự án)</div><div class="value">${fmtMoney(bdsTongCP(p))}</div></div>
+      <div class="card"><div class="label">Vốn tao góp (${fmtPct(m.tyLeVonGop)} tổng CP)</div><div class="value">${fmtMoney(p.vonGop)}</div></div>
+      <div class="card"><div class="label">Vốn tự bỏ ra thực tế</div><div class="value">${fmtMoney(m.vonTuCo)}</div></div>
       <div class="card ${m.dongTienVanHanhLuyKe<0?'danger':'ok'}"><div class="label">Dòng tiền vận hành lũy kế</div><div class="value">${fmtMoney(m.dongTienVanHanhLuyKe)}</div></div>
-      <div class="card"><div class="label">Tổng lãi NH đã tính</div><div class="value">${fmtMoney(m.tongLaiNH)}</div></div>
-      <div class="card"><div class="label">Dư nợ còn lại</div><div class="value">${fmtMoney(m.duNoConLai)}</div></div>
+      ${isVayNH?`
+      <div class="card"><div class="label">Tổng lãi NH đã tính (khoản vay của tôi)</div><div class="value">${fmtMoney(m.tongLaiNH)}</div></div>
+      <div class="card"><div class="label">Dư nợ vay còn lại (của tôi)</div><div class="value">${fmtMoney(m.duNoConLai)}</div></div>
+      `:''}
       ${p.ban && p.ban.daBan ? `
-      <div class="card ${m.loiNhuan>=0?'ok':'danger'}"><div class="label">Lợi nhuận dự án</div><div class="value">${fmtMoney(m.loiNhuan)}</div></div>
-      <div class="card ${m.roi>=0?'ok':'danger'}"><div class="label">ROI</div><div class="value">${m.roi!==null?fmtPct(m.roi):'—'}</div></div>
+      <div class="card ${m.loiNhuan>=0?'ok':'danger'}"><div class="label">Lợi nhuận (phần của tôi)</div><div class="value">${fmtMoney(m.loiNhuan)}</div></div>
+      <div class="card ${m.roi>=0?'ok':'danger'}"><div class="label">ROI (trên vốn tự bỏ ra)</div><div class="value">${m.roi!==null?fmtPct(m.roi):'—'}</div></div>
       <div class="card"><div class="label">IRR quy năm</div><div class="value">${m.irr!==null?fmtPct(m.irr):'—'}</div></div>
       ` : `<div class="card"><div class="label">Hoà vốn dòng tiền thuê</div><div class="value" style="font-size:0.95rem;">${m.thangHoaVon?fmtDateVN(m.thangHoaVon):'Chưa tới'}</div></div>`}
     </div>
 
     <div class="detail-section">
-      <h3>Thông tin công trình</h3>
+      <h3>Thông tin công trình &amp; vốn góp</h3>
       <div class="kv-grid">
         <div class="k">Ngày khởi công</div><div class="v">${fmtDateVN(p.ngayKhoiCong)}</div>
         <div class="k">Ngày hoàn thành</div><div class="v">${fmtDateVN(p.ngayHoanThanh)}</div>
-        <div class="k">Ngày giải ngân vay</div><div class="v">${fmtDateVN(p.ngayGiaiNgan)}</div>
-        <div class="k">CP đất / Xây dựng / Khác</div><div class="v">${fmtMoney(p.cpDat)} / ${fmtMoney(p.cpXayDung)} / ${fmtMoney(p.cpKhac)}</div>
+        <div class="k">CP đất / Xây dựng / Khác (cả dự án)</div><div class="v">${fmtMoney(p.cpDat)} / ${fmtMoney(p.cpXayDung)} / ${fmtMoney(p.cpKhac)}</div>
+        <div class="k">Vốn tao góp</div><div class="v" style="font-weight:700;">${fmtMoney(p.vonGop)} (≈${fmtPct(m.tyLeVonGop)} tổng CP công trình)</div>
+        <div class="k">Nguồn vốn góp</div><div class="v">${isVayNH?'Vay ngân hàng':'Vốn tự có'}</div>
+        ${isVayNH?`<div class="k">Số tiền vay NH / Ngày giải ngân</div><div class="v">${fmtMoney(p.vonVayNH)} · ${fmtDateVN(p.ngayGiaiNgan)}</div>`:''}
       </div>
       ${canStaff?`
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center;">
@@ -4224,15 +4269,29 @@ function bdsDetailHtml(pid){
     </div>
 
     <div class="detail-section">
-      <h3>Lịch lãi vay ngân hàng &amp; dòng tiền theo tháng</h3>
-      <div class="small-note">Nhập lãi suất %/năm mỗi tháng (ô vàng) — hệ thống tự tính tiền lãi = Dư nợ đầu kỳ × Lãi suất ÷ 365 × Số ngày thực tế. Thu thuê / chi vận hành nhập theo thực tế từng tháng.</div>
+      <h3>Cho thuê nguyên căn — bao thầu 1 đơn vị</h3>
+      <div class="small-note">Phong cách đầu tư: xong công trình cho 1 đơn vị thuê/thầu trọn căn, không tự vận hành cho thuê từng phòng. Thông tin ở đây chỉ để tham chiếu, tự gợi ý doanh thu khi bấm "Thêm tháng" bên dưới — số thực nhận từng tháng vẫn sửa trực tiếp ở bảng.</div>
+      <div class="two-col" style="margin-top:10px;">
+        <div class="field"><label>Đơn vị / đối tác thuê nguyên căn</label><input class="mini-input" type="text" value="${escapeHtml(thue.doiTacThue||'')}" onchange="bdsUpdateChoThue('${p.id}','doiTacThue',this.value)" ${canStaff?'':'disabled'}></div>
+        <div class="field"><label>Giá thuê thoả thuận / tháng (đ)</label><input class="mini-input num money-input" type="text" inputmode="numeric" value="${fmtInputMoney(thue.giaThueThoaThuan||0)}" onchange="bdsUpdateChoThue('${p.id}','giaThueThoaThuan',parseMoneyStr(this.value))" ${canStaff?'':'disabled'}></div>
+      </div>
+      <div class="two-col">
+        <div class="field"><label>Ngày bắt đầu cho thuê</label><input class="mini-input" type="date" value="${thue.ngayBatDauThue||''}" onchange="bdsUpdateChoThue('${p.id}','ngayBatDauThue',this.value)" ${canStaff?'':'disabled'}></div>
+        <div class="field"><label>Thời hạn hợp đồng (tháng)</label><input class="mini-input num" type="number" value="${thue.thoiHanThangHopDong||''}" onchange="bdsUpdateChoThue('${p.id}','thoiHanThangHopDong',this.value)" ${canStaff?'':'disabled'}></div>
+      </div>
+      <div class="field"><label>Ghi chú hợp đồng thuê</label><input class="mini-input" type="text" value="${escapeHtml(thue.ghiChu||'')}" onchange="bdsUpdateChoThue('${p.id}','ghiChu',this.value)" ${canStaff?'':'disabled'}></div>
+    </div>
+
+    <div class="detail-section">
+      <h3>Dòng tiền theo tháng${isVayNH?' & lịch vay ngân hàng (khoản vay cá nhân để góp vốn)':''}</h3>
+      <div class="small-note">${isVayNH?'Nhập lãi suất %/năm mỗi tháng (ô vàng) — hệ thống tự tính tiền lãi = Dư nợ đầu kỳ × Lãi suất ÷ 365 × Số ngày thực tế. ':'Vốn góp là vốn tự có, không có khoản vay nên các cột lãi/gốc vay luôn bằng 0. '}Cột "Thu thuê" là số tiền thực nhận từ đơn vị thuê nguyên căn, "Chi vận hành" là chi phí phát sinh phía mình (nếu có) — nhập theo thực tế từng tháng.</div>
       <div style="overflow-x:auto;margin-top:10px;">
         <table class="ledger schedule-table">
           <thead><tr>
             <th>Kỳ</th><th style="text-align:right;">Dư nợ đầu kỳ</th><th style="text-align:right;">Lãi suất %/năm</th>
             <th style="text-align:right;">Số ngày</th><th style="text-align:right;">Lãi NH (auto)</th>
             <th style="text-align:right;">Trả gốc</th><th style="text-align:right;">Dư nợ cuối kỳ</th>
-            <th style="text-align:right;">Thu thuê</th><th style="text-align:right;">Chi vận hành</th>
+            <th style="text-align:right;">Thu thuê (phần của tôi)</th><th style="text-align:right;">Chi vận hành</th>
             <th style="text-align:right;">Dòng tiền ròng</th><th style="text-align:right;">Luỹ kế</th><th></th>
           </tr></thead>
           <tbody>
@@ -4250,7 +4309,7 @@ function bdsDetailHtml(pid){
                 <td class="num" style="font-weight:600;color:${r.dongTienRong<0?'var(--danger)':'var(--success)'};">${fmtMoney(r.dongTienRong)}</td>
                 <td class="num">${fmtMoney(r.luyKeVanHanh)}</td>
                 <td>${canStaff?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:0.72rem;" onclick="bdsDeleteRow('${p.id}','${r.id}')">Xoá</button>`:''}</td>
-              </tr>`).join('') : `<tr><td colspan="12" style="text-align:center;color:var(--ink-soft);padding:16px;">Chưa có tháng nào — bấm "Thêm tháng" để bắt đầu lịch lãi vay.</td></tr>`}
+              </tr>`).join('') : `<tr><td colspan="12" style="text-align:center;color:var(--ink-soft);padding:16px;">Chưa có tháng nào — bấm "Thêm tháng" để bắt đầu.</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -4258,42 +4317,17 @@ function bdsDetailHtml(pid){
     </div>
 
     <div class="detail-section">
-      <h3>Cho thuê — danh sách phòng (nhà CCMN)</h3>
-      <div class="small-note">Danh sách phòng để tham chiếu khi thêm tháng mới (tự gợi ý doanh thu thuê từ các phòng đang có khách). Doanh thu thực tế từng tháng vẫn nhập/sửa trực tiếp ở bảng phía trên.</div>
-      <div style="overflow-x:auto;margin-top:8px;">
-        <table class="ledger">
-          <thead><tr><th>Mã phòng</th><th style="text-align:right;">Giá thuê/tháng</th><th>Trạng thái</th><th></th></tr></thead>
-          <tbody>
-            ${rooms.length ? rooms.map(r=>`
-              <tr>
-                <td><input class="mini-input" type="text" value="${escapeHtml(r.maPhong)}" onchange="bdsUpdateRoom('${p.id}','${r.id}','maPhong',this.value)" ${canStaff?'':'disabled'}></td>
-                <td class="num"><input class="mini-input num money-input" type="text" inputmode="numeric" value="${fmtInputMoney(r.giaThue)}" onchange="bdsUpdateRoom('${p.id}','${r.id}','giaThue',parseMoneyStr(this.value))" ${canStaff?'':'disabled'}></td>
-                <td>
-                  <select class="mini-input" onchange="bdsUpdateRoom('${p.id}','${r.id}','trangThai',this.value)" ${canStaff?'':'disabled'}>
-                    <option value="trong" ${r.trangThai==='trong'?'selected':''}>Trống</option>
-                    <option value="co_khach" ${r.trangThai==='co_khach'?'selected':''}>Có khách</option>
-                  </select>
-                </td>
-                <td>${canStaff?`<button class="btn btn-ghost" style="padding:4px 8px;font-size:0.72rem;" onclick="bdsDeleteRoom('${p.id}','${r.id}')">Xoá</button>`:''}</td>
-              </tr>`).join('') : `<tr><td colspan="4" style="text-align:center;color:var(--ink-soft);padding:16px;">Chưa có phòng nào.</td></tr>`}
-          </tbody>
-        </table>
-      </div>
-      ${canStaff?`<button class="btn btn-ghost" style="margin-top:10px;" onclick="bdsAddRoom('${p.id}')">+ Thêm phòng</button>`:''}
-    </div>
-
-    <div class="detail-section">
-      <h3>Bán nhà</h3>
+      <h3>Bán nhà / thanh lý phần vốn góp</h3>
       ${p.ban && p.ban.daBan ? `
         <div class="kv-grid">
           <div class="k">Ngày bán</div><div class="v">${fmtDateVN(p.ban.ngayBan)}</div>
-          <div class="k">Giá bán</div><div class="v">${fmtMoney(p.ban.giaBan)}</div>
-          <div class="k">Chi phí bán</div><div class="v">${fmtMoney(p.ban.chiPhiBan)}</div>
-          <div class="k">Tiền về ròng</div><div class="v">${fmtMoney(m.tienVeKhiBan)}</div>
+          <div class="k">Số tiền tôi thực nhận</div><div class="v">${fmtMoney(p.ban.giaBan)}</div>
+          <div class="k">Chi phí liên quan (nếu có)</div><div class="v">${fmtMoney(p.ban.chiPhiBan)}</div>
+          <div class="k">Tiền về ròng (sau khi trừ dư nợ vay của tôi)</div><div class="v">${fmtMoney(m.tienVeKhiBan)}</div>
         </div>
         ${canStaff?`<button class="btn btn-ghost" style="margin-top:8px;" onclick="bdsOpenSaleForm('${p.id}')">Sửa thông tin bán</button>`:''}
       ` : `
-        <div class="small-note">Chưa bán — căn nhà tiếp tục tạo dòng tiền từ cho thuê ở bảng phía trên. Khi có khách mua toàn bộ căn, ghi nhận tại đây để tính lợi nhuận, ROI, IRR cuối cùng.</div>
+        <div class="small-note">Chưa bán — dự án tiếp tục tạo dòng tiền từ cho thuê ở bảng phía trên. Khi đối tác bán nhà / thanh lý và mình nhận lại tiền phần góp vốn, ghi nhận tại đây để tính lợi nhuận, ROI, IRR cuối cùng.</div>
         ${canStaff?`<button class="btn btn-brass" style="margin-top:10px;" onclick="bdsOpenSaleForm('${p.id}')">Ghi nhận bán nhà</button>`:''}
       `}
     </div>
@@ -4320,9 +4354,9 @@ async function bdsAddMonthRow(pid){
   const kyMoi = last && last.ky ? addMonthsToStr(last.ky, 1) : (p.ngayGiaiNgan || p.ngayKhoiCong || todayStr());
   const duNoMoi = last ? last.duNoCuoiKy : Number(p.vonVayNH||0);
   const laiSuatMoi = last ? Number(last.laiSuat||0) : 0;
-  const thueTuPhong = (p.phong||[]).filter(r=>r.trangThai==='co_khach').reduce((s,r)=>s+Number(r.giaThue||0),0);
+  const goiYThueThang = Number((p.choThueNguyenCan||{}).giaThueThoaThuan||0);
   rows.push({ id:uid(), ky:kyMoi, duNoDauKy:duNoMoi, laiSuat:laiSuatMoi, soNgay:0, tienLaiNH:0, traGoc:0, duNoCuoiKy:0,
-    doanhThuChoThue: p.trangThai===BDS_STATUS.CHO_THUE ? thueTuPhong : 0, chiPhiVanHanh:0, dongTienRong:0 });
+    doanhThuChoThue: p.trangThai===BDS_STATUS.CHO_THUE ? goiYThueThang : 0, chiPhiVanHanh:0, dongTienRong:0 });
   bdsRecalcSchedule(p);
   await saveBds();
   renderBdsDetailModal(pid);
@@ -4346,24 +4380,11 @@ async function bdsDeleteRow(pid, rowId){
   renderBdsTab();
 }
 
-/* ---------- phòng cho thuê ---------- */
-async function bdsAddRoom(pid){
+/* ---------- cho thuê nguyên căn (bao thầu 1 đơn vị, không quản lý theo từng phòng) ---------- */
+async function bdsUpdateChoThue(pid, field, value){
   const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
-  const rooms = p.phong || (p.phong=[]);
-  rooms.push({ id:uid(), maPhong:`P${rooms.length+1}`, giaThue:0, trangThai:'trong' });
-  await saveBds();
-  renderBdsDetailModal(pid);
-}
-async function bdsUpdateRoom(pid, roomId, field, value){
-  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
-  const r = (p.phong||[]).find(x=>x.id===roomId); if(!r) return;
-  r[field] = (field==='maPhong'||field==='trangThai') ? value : (Number(value)||0);
-  await saveBds();
-  renderBdsDetailModal(pid);
-}
-async function bdsDeleteRoom(pid, roomId){
-  const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
-  p.phong = (p.phong||[]).filter(x=>x.id!==roomId);
+  p.choThueNguyenCan = p.choThueNguyenCan || {};
+  p.choThueNguyenCan[field] = (field==='giaThueThoaThuan'||field==='thoiHanThangHopDong') ? (Number(value)||0) : value;
   await saveBds();
   renderBdsDetailModal(pid);
 }
@@ -4373,11 +4394,11 @@ function bdsOpenSaleForm(pid){
   const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
   openModal(`
     <h2>Ghi nhận bán — ${escapeHtml(p.doiTac)}</h2>
-    <div class="modal-sub">Hệ thống tự trừ dư nợ ngân hàng còn lại tại thời điểm bán, tính lợi nhuận, ROI, IRR.</div>
-    <div class="field"><label>Ngày bán</label><input type="date" id="bs_ngayBan" value="${p.ban&&p.ban.ngayBan?p.ban.ngayBan:todayStr()}"></div>
+    <div class="modal-sub">Nhập đúng số tiền mình thực nhận về (phần vốn góp + lợi nhuận chia, theo thoả thuận với đối tác) — không phải giá bán toàn bộ căn nhà. Hệ thống tự trừ dư nợ vay cá nhân (nếu có) còn lại tại thời điểm này, tính lợi nhuận, ROI, IRR.</div>
+    <div class="field"><label>Ngày bán / thanh lý</label><input type="date" id="bs_ngayBan" value="${p.ban&&p.ban.ngayBan?p.ban.ngayBan:todayStr()}"></div>
     <div class="two-col">
-      <div class="field"><label>Giá bán toàn bộ căn (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bs_giaBan" value="${fmtInputMoney(p.ban?p.ban.giaBan||'':'')}"></div>
-      <div class="field"><label>Chi phí bán (môi giới, thuế...) (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bs_chiPhiBan" value="${fmtInputMoney(p.ban?p.ban.chiPhiBan||0:0)}"></div>
+      <div class="field"><label>Số tiền tôi thực nhận về (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bs_giaBan" value="${fmtInputMoney(p.ban?p.ban.giaBan||'':'')}"></div>
+      <div class="field"><label>Chi phí liên quan (nếu có) (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bs_chiPhiBan" value="${fmtInputMoney(p.ban?p.ban.chiPhiBan||0:0)}"></div>
     </div>
     <div class="field"><label>Ghi chú</label><input type="text" id="bs_ghiChu" value="${p.ban?escapeHtml(p.ban.ghiChu||''):''}"></div>
     <div class="err-msg" id="bdsSaleErr"></div>
@@ -4393,11 +4414,11 @@ async function bdsSubmitSale(pid){
   const giaBan = moneyVal('bs_giaBan');
   const chiPhiBan = moneyVal('bs_chiPhiBan');
   const ghiChu = document.getElementById('bs_ghiChu').value.trim();
-  if(!ngayBan || !giaBan){ document.getElementById('bdsSaleErr').textContent='Nhập đủ Ngày bán và Giá bán.'; return; }
+  if(!ngayBan || !giaBan){ document.getElementById('bdsSaleErr').textContent='Nhập đủ Ngày bán và Số tiền thực nhận.'; return; }
   p.ban = { daBan:true, ngayBan, giaBan, chiPhiBan, ghiChu };
   p.trangThai = BDS_STATUS.DA_BAN;
   await saveBds();
-  await logActivity('Bán BDS', `${p.doiTac} — giá bán ${fmtMoney(giaBan)}`);
+  await logActivity('Bán BDS', `${p.doiTac} — thực nhận ${fmtMoney(giaBan)}`);
   openBdsDetail(pid);
   renderBdsTab();
   showToast('Đã ghi nhận bán — đã tính lợi nhuận, ROI, IRR.');
