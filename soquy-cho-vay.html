@@ -196,7 +196,13 @@
   .modal-card{background:var(--surface);border-radius:14px;max-width:600px;width:100%;padding:26px 28px;box-shadow:0 12px 40px rgba(0,0,0,0.25);}
   .modal-card h2{font-family:var(--font-display);margin:0 0 4px;font-size:1.25rem;color:var(--heading);}
   .modal-card .modal-sub{color:var(--ink-soft);font-size:0.85rem;margin-bottom:18px;}
-  .modal-close-row{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;}
+  .modal-close-row{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;flex-wrap:wrap;}
+  @media (max-width:600px){
+    .modal-overlay{padding:0;align-items:stretch;}
+    .modal-card{max-width:100%;min-height:100%;border-radius:0;padding:20px 16px 28px;}
+    .modal-close-row{justify-content:flex-start;}
+    .modal-close-row .btn{flex:1 1 auto;min-width:44%;}
+  }
   .two-col{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;}
   @media (max-width:520px){.two-col{grid-template-columns:1fr;}}
 
@@ -1374,11 +1380,16 @@ function computeKhachDangNo(){
     const d = derive(l);
     if(d.tienDangTre<=0) return;
     const key = l.tenKhachHang;
-    if(!byKhach[key]) byKhach[key] = { tenKhachHang:key, tongNo:0, khoanVay:[] };
+    if(!byKhach[key]) byKhach[key] = { tenKhachHang:key, tongNo:0, tongGoc:0, khoanVay:[] };
     byKhach[key].tongNo += d.tienDangTre;
+    byKhach[key].tongGoc += Number(l.tongTienGoc||0);
     byKhach[key].khoanVay.push({ id:l.id, goc:l.tongTienGoc, noDangGhi:d.noDangGhi, laiNoCu:d.laiNoCu, tong:d.tienDangTre });
   });
   return Object.values(byKhach).sort((a,b)=>b.tongNo-a.tongNo);
+}
+function toggleAccordion(id){
+  const el = document.getElementById(id);
+  if(el) el.classList.toggle('hidden');
 }
 function openLaiDangTreoDetail(){
   const list = computeKhachDangNo();
@@ -1386,25 +1397,31 @@ function openLaiDangTreoDetail(){
   openModal(`
     <h2>Lãi đang treo — theo khách</h2>
     <div class="modal-sub">Tổng: <b>${fmtMoney(tong)}</b> — ${fmtInt(list.length)} khách đang nợ</div>
-    ${list.length ? list.map(k=>`
+    ${list.length ? list.map((k,i)=>`
       <div class="detail-section">
-        <div style="display:flex;justify-content:space-between;align-items:center;">
-          <b>${escapeHtml(k.tenKhachHang)}</b>
-          <span style="font-weight:700;color:var(--danger);">${fmtMoney(k.tongNo)}</span>
-        </div>
-        ${k.khoanVay.map(kv=>`
-          <div class="history-row" style="cursor:pointer;" onclick="closeModal();openLoanDetail('${kv.id}')">
-            <span>Gốc ${fmtMoney(kv.goc)}${kv.noDangGhi>0?` · Nợ đang treo ${fmtMoney(kv.noDangGhi)}`:''}${kv.laiNoCu>0?` · Nợ cũ ${fmtMoney(kv.laiNoCu)}`:''}</span>
-            <span class="amt" style="color:var(--danger);">${fmtMoney(kv.tong)}</span>
+        <div style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;" onclick="toggleAccordion('treoKhoan_${i}')">
+          <div>
+            <b>${escapeHtml(k.tenKhachHang)}</b>
+            <div class="small-note" style="margin-top:2px;">Tổng gốc đang vay: <b>${fmtMoney(k.tongGoc)}</b> · ${fmtInt(k.khoanVay.length)} mã — bấm để xem chi tiết</div>
           </div>
-        `).join('')}
+          <span style="font-weight:700;color:var(--danger);white-space:nowrap;">${fmtMoney(k.tongNo)}</span>
+        </div>
+        <div id="treoKhoan_${i}" class="hidden" style="margin-top:10px;">
+          ${k.khoanVay.map(kv=>`
+            <div class="history-row" style="cursor:pointer;" onclick="closeModal();openLoanDetail('${kv.id}')">
+              <span>Gốc ${fmtMoney(kv.goc)}${kv.noDangGhi>0?` · Nợ đang treo ${fmtMoney(kv.noDangGhi)}`:''}${kv.laiNoCu>0?` · Nợ cũ ${fmtMoney(kv.laiNoCu)}`:''}</span>
+              <span class="amt" style="color:var(--danger);">${fmtMoney(kv.tong)}</span>
+            </div>
+          `).join('')}
+        </div>
       </div>
     `).join('') : '<div class="empty-state">Không có khách nào đang nợ lãi.</div>'}
     <div class="modal-close-row"><button class="btn btn-ghost" onclick="closeModal()">Đóng</button></div>
   `);
 }
 
-/* ---------- Chi tiết "Khách sắp đến hạn" — nội dung nhắc nợ copy được ---------- */
+/* ---------- Chi tiết "Khách sắp đến hạn" — nội dung nhắc nợ copy được + thao tác nhanh ---------- */
+let _sapDenHanCache = [];
 function computeKhachSapDenHan(){
   const dueSoonDays = settings.dueSoonDays||3;
   const active = loans.filter(l=>!l.tatToan);
@@ -1413,10 +1430,13 @@ function computeKhachSapDenHan(){
     if(calcTrangThai(l, dueSoonDays) !== STATUS.NHAC_NO) return;
     const d = derive(l);
     const key = l.tenKhachHang;
-    if(!byKhach[key]) byKhach[key] = { tenKhachHang:key, khoanVay:[] };
+    if(!byKhach[key]) byKhach[key] = { tenKhachHang:key, khoanVay:[], ngayNhacGanNhat:null };
     byKhach[key].khoanVay.push({
       id: l.id, laiKy: d.laiKy, tuNgay: l.ngayDongLaiGanNhat, denNgay: d.denHanTiep, laiCu: d.tienDangTre
     });
+    if(l.ngayNhacGanNhat && (!byKhach[key].ngayNhacGanNhat || l.ngayNhacGanNhat > byKhach[key].ngayNhacGanNhat)){
+      byKhach[key].ngayNhacGanNhat = l.ngayNhacGanNhat;
+    }
   });
   return Object.values(byKhach);
 }
@@ -1436,6 +1456,7 @@ function buildReminderMessage(khach){
 }
 function openSapDenHanDetail(){
   const list = computeKhachSapDenHan();
+  _sapDenHanCache = list;
   openModal(`
     <h2>Khách sắp đến hạn</h2>
     <div class="modal-sub">${fmtInt(list.length)} khách cần nhắc trong ${fmtInt(settings.dueSoonDays||3)} ngày tới</div>
@@ -1444,16 +1465,38 @@ function openSapDenHanDetail(){
       const tong = k.khoanVay.reduce((s,kv)=>s+kv.laiKy+kv.laiCu,0);
       return `
       <div class="detail-section">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:10px;">
           <b>${escapeHtml(k.tenKhachHang)}</b>
-          <span style="font-weight:700;">${fmtMoney(tong)}</span>
+          <span style="font-weight:700;white-space:nowrap;">${fmtMoney(tong)}</span>
         </div>
+        ${k.khoanVay.map(kv=>`
+          <div style="border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:8px;">
+            <div style="font-size:0.85rem;margin-bottom:8px;">Lãi ${fmtMoney(kv.laiKy)} <span class="small-note">(${fmtDateVN(kv.tuNgay)} → ${fmtDateVN(kv.denNgay)})</span>${kv.laiCu>0?` + nợ cũ ${fmtMoney(kv.laiCu)}`:''}</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-primary" style="flex:1;min-width:110px;" onclick="closeModal();openCollectForm('${kv.id}')">Đã thu tiền</button>
+              <button class="btn btn-outline" style="flex:1;min-width:110px;" onclick="closeModal();openGhiNoForm('${kv.id}')">Khách nợ</button>
+            </div>
+          </div>
+        `).join('')}
         <textarea readonly id="remindMsg_${i}" style="width:100%;min-height:110px;padding:10px;border:1px solid var(--line);border-radius:8px;font-family:var(--font-mono);font-size:0.85rem;background:var(--paper);color:var(--ink);resize:vertical;">${escapeHtml(message)}</textarea>
-        <button class="btn btn-outline" style="margin-top:8px;" onclick="copyReminderText('remindMsg_${i}')">Sao chép nội dung</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+          <button class="btn btn-outline" style="flex:1;min-width:110px;" onclick="copyReminderText('remindMsg_${i}')">Sao chép nội dung</button>
+          <button class="btn btn-ghost" style="flex:1;min-width:110px;" onclick="markDaNhacKhach(${i})">Đã nhắc khách${k.ngayNhacGanNhat?` <span class="small-note">(${new Date(k.ngayNhacGanNhat).toLocaleString('vi-VN')})</span>`:''}</button>
+        </div>
       </div>`;
     }).join('') : '<div class="empty-state">Không có khách nào sắp đến hạn.</div>'}
     <div class="modal-close-row"><button class="btn btn-ghost" onclick="closeModal()">Đóng</button></div>
   `);
+}
+async function markDaNhacKhach(i){
+  const k = _sapDenHanCache[i];
+  if(!k) return;
+  const now = new Date().toISOString();
+  loans.filter(l=>!l.tatToan && l.tenKhachHang===k.tenKhachHang).forEach(l=>{ l.ngayNhacGanNhat = now; });
+  await saveLoans();
+  await logActivity('Đã nhắc khách', k.tenKhachHang);
+  showToast(`Đã đánh dấu nhắc ${k.tenKhachHang}.`);
+  openSapDenHanDetail();
 }
 function copyReminderText(textareaId){
   const el = document.getElementById(textareaId);
