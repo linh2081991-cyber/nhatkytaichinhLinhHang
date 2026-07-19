@@ -1873,6 +1873,7 @@ function openLoanDetail(id){
       ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-outline" onclick="openEditLoanForm('${loan.id}')">Sửa thông tin</button>`:''}
       ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-danger" onclick="askSettleLoan('${loan.id}')">Tất toán</button>`:''}
       ${roleAtLeast('admin')?`<button class="btn btn-ghost" onclick="askDeleteLoan('${loan.id}')">Xoá</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-ghost" onclick="openSyncLichSuForm('${loan.id}')">Đồng bộ lịch sử thu lãi</button>`:''}
       ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-outline" onclick="openGhiNoForm('${loan.id}')">Ghi nợ kỳ này</button>`:''}
       ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-primary" onclick="openCollectForm('${loan.id}')">Ghi nhận thu lãi</button>`:''}
     </div>
@@ -1962,6 +1963,56 @@ async function submitGhiNo(id){
   await logActivity('Ghi nợ lãi', `${loan.tenKhachHang} — +${fmtMoney(sotien)} (tổng đang nợ ${fmtMoney(loan.noLaiTichLuy)})`);
   closeModal(); renderAll();
   showToast('Đã ghi nhận nợ lãi kỳ này.');
+}
+
+/* ---------- Đồng bộ lịch sử thu lãi theo lịch ----------
+   Dùng khi đã sửa lại Ngày đóng lãi gần nhất (vd. sửa năm bị gõ nhầm) khiến số kỳ theo
+   lịch (tính bằng Ngày vay -> Ngày đóng lãi gần nhất) cao hơn tổng số kỳ đang có trong
+   Lịch sử thu lãi. Bổ sung đúng phần kỳ còn thiếu thành 1 dòng lịch sử mới — sau đó
+   "Lãi đã thu theo năm" (calcLaiTheoNam) sẽ tự động phân bổ lại chính xác theo từng năm
+   dương lịch vì hàm này luôn duyệt lại toàn bộ lịch sử theo đúng mốc kỳ. */
+function openSyncLichSuForm(id){
+  if(!requireRole('admin')) return;
+  const loan = loans.find(l=>l.id===id);
+  const d = derive(loan);
+  const soKyHienCo = (loan.lichSuThuLai||[]).reduce((s,x)=>s+Number(x.soKy||0),0);
+  const soKyThieu = Math.max(0, d.soKyDaThu - soKyHienCo);
+  const tienBoSung = soKyThieu * d.laiKy;
+  openModal(`
+    <h2>Đồng bộ lịch sử thu lãi</h2>
+    <div class="modal-sub">${escapeHtml(loan.tenKhachHang)}</div>
+    <div class="small-note">
+      Theo lịch (Ngày vay → Ngày đóng lãi gần nhất): <b>${fmtInt(d.soKyDaThu)} kỳ</b>.<br>
+      Lịch sử thu lãi hiện đang ghi nhận: <b>${fmtInt(soKyHienCo)} kỳ</b>.<br>
+      ${soKyThieu>0
+        ? `Sẽ bổ sung 1 dòng lịch sử cho <b>${fmtInt(soKyThieu)} kỳ</b> còn thiếu = <b>${fmtMoney(tienBoSung)}</b>. "Lãi đã thu theo năm" sẽ tự tính lại đúng theo từng năm sau khi đồng bộ.`
+        : 'Không có chênh lệch — không cần đồng bộ.'}
+    </div>
+    ${soKyThieu>0 ? `
+    <div class="field"><label>Ngày ghi bổ sung</label><input type="date" id="sync_ngay" value="${loan.ngayDongLaiGanNhat||todayStr()}"></div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="sync_ghichu" value="Đồng bộ bổ sung kỳ đã thu theo Ngày đóng lãi gần nhất đã hiệu chỉnh"></div>
+    <div class="field"><label>Mã PIN Quản trị</label><input type="password" id="sync_pin"></div>
+    <div class="err-msg" id="syncErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-brass" onclick="submitSyncLichSu('${id}', ${soKyThieu}, ${tienBoSung})">Xác nhận đồng bộ</button>
+    </div>` : `
+    <div class="modal-close-row"><button class="btn btn-ghost" onclick="openLoanDetail('${id}')">Đóng</button></div>`}
+  `);
+}
+async function submitSyncLichSu(id, soKyThieu, tienBoSung){
+  const loan = loans.find(l=>l.id===id);
+  const pin = document.getElementById('sync_pin').value;
+  const err = document.getElementById('syncErr');
+  if(pin !== settings.adminPin){ err.textContent='Sai mã PIN Quản trị.'; return; }
+  if(!requireUser()) return;
+  const ngay = document.getElementById('sync_ngay').value || todayStr();
+  const ghichu = document.getElementById('sync_ghichu').value.trim();
+  loan.lichSuThuLai.push({ id:uid(), ngayThu:ngay, soKy:soKyThieu, soTien:tienBoSung, ghiChu:ghichu||'Đồng bộ lịch sử thu lãi', nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  await saveLoans();
+  await logActivity('Đồng bộ lịch sử thu lãi', `${loan.tenKhachHang} — bổ sung ${soKyThieu} kỳ, ${fmtMoney(tienBoSung)}`);
+  closeModal(); openLoanDetail(id); renderAll();
+  showToast('Đã đồng bộ lịch sử thu lãi.');
 }
 
 /* ---------- Edit loan (admin-gated for sensitive fields) ---------- */
@@ -2936,6 +2987,7 @@ function openExternalLoanDetail(id){
       ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-outline" onclick="openEditExternalLoanForm('${loan.id}')">Sửa thông tin</button>`:''}
       ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-danger" onclick="askSettleExternalLoan('${loan.id}')">Tất toán (trả hết)</button>`:''}
       ${roleAtLeast('admin')?`<button class="btn btn-ghost" onclick="askDeleteExternalLoan('${loan.id}')">Xoá</button>`:''}
+      ${(!loan.tatToan && roleAtLeast('admin'))?`<button class="btn btn-ghost" onclick="openSyncLichSuExternalForm('${loan.id}')">Đồng bộ lịch sử trả lãi</button>`:''}
       ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-outline" onclick="openGhiNoExternalForm('${loan.id}')">Ghi nợ kỳ này</button>`:''}
       ${(!loan.tatToan && roleAtLeast('staff'))?`<button class="btn btn-primary" onclick="openExtCollectForm('${loan.id}')">Ghi nhận trả lãi</button>`:''}
     </div>
@@ -3025,6 +3077,51 @@ async function submitGhiNoExternal(id){
   await logActivity('Ghi nợ lãi vay ngoài', `${loan.tenKhachHang} — +${fmtMoney(sotien)} (tổng đang nợ ${fmtMoney(loan.noLaiTichLuy)})`);
   closeModal(); renderFinanceTab();
   showToast('Đã ghi nhận nợ lãi kỳ này.');
+}
+
+/* ---------- Đồng bộ lịch sử trả lãi vay ngoài theo lịch (xem giải thích ở bản loan) ---------- */
+function openSyncLichSuExternalForm(id){
+  if(!requireRole('admin')) return;
+  const loan = externalLoans.find(l=>l.id===id);
+  const d = derive(loan);
+  const soKyHienCo = (loan.lichSuThuLai||[]).reduce((s,x)=>s+Number(x.soKy||0),0);
+  const soKyThieu = Math.max(0, d.soKyDaThu - soKyHienCo);
+  const tienBoSung = soKyThieu * d.laiKy;
+  openModal(`
+    <h2>Đồng bộ lịch sử trả lãi</h2>
+    <div class="modal-sub">${escapeHtml(loan.tenKhachHang)}</div>
+    <div class="small-note">
+      Theo lịch (Ngày vay → Ngày trả lãi gần nhất): <b>${fmtInt(d.soKyDaThu)} kỳ</b>.<br>
+      Lịch sử trả lãi hiện đang ghi nhận: <b>${fmtInt(soKyHienCo)} kỳ</b>.<br>
+      ${soKyThieu>0
+        ? `Sẽ bổ sung 1 dòng lịch sử cho <b>${fmtInt(soKyThieu)} kỳ</b> còn thiếu = <b>${fmtMoney(tienBoSung)}</b>. "Lãi đã trả theo năm" sẽ tự tính lại đúng theo từng năm sau khi đồng bộ.`
+        : 'Không có chênh lệch — không cần đồng bộ.'}
+    </div>
+    ${soKyThieu>0 ? `
+    <div class="field"><label>Ngày ghi bổ sung</label><input type="date" id="syncx_ngay" value="${loan.ngayDongLaiGanNhat||todayStr()}"></div>
+    <div class="field"><label>Ghi chú</label><input type="text" id="syncx_ghichu" value="Đồng bộ bổ sung kỳ đã trả theo Ngày trả lãi gần nhất đã hiệu chỉnh"></div>
+    <div class="field"><label>Mã PIN Quản trị</label><input type="password" id="syncx_pin"></div>
+    <div class="err-msg" id="syncxErr"></div>
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openExternalLoanDetail('${id}')">Huỷ</button>
+      <button class="btn btn-brass" onclick="submitSyncLichSuExternal('${id}', ${soKyThieu}, ${tienBoSung})">Xác nhận đồng bộ</button>
+    </div>` : `
+    <div class="modal-close-row"><button class="btn btn-ghost" onclick="openExternalLoanDetail('${id}')">Đóng</button></div>`}
+  `);
+}
+async function submitSyncLichSuExternal(id, soKyThieu, tienBoSung){
+  const loan = externalLoans.find(l=>l.id===id);
+  const pin = document.getElementById('syncx_pin').value;
+  const err = document.getElementById('syncxErr');
+  if(pin !== settings.adminPin){ err.textContent='Sai mã PIN Quản trị.'; return; }
+  if(!requireUser()) return;
+  const ngay = document.getElementById('syncx_ngay').value || todayStr();
+  const ghichu = document.getElementById('syncx_ghichu').value.trim();
+  loan.lichSuThuLai.push({ id:uid(), ngayThu:ngay, soKy:soKyThieu, soTien:tienBoSung, ghiChu:ghichu||'Đồng bộ lịch sử trả lãi', nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  await saveExternalLoans();
+  await logActivity('Đồng bộ lịch sử trả lãi vay ngoài', `${loan.tenKhachHang} — bổ sung ${soKyThieu} kỳ, ${fmtMoney(tienBoSung)}`);
+  closeModal(); openExternalLoanDetail(id); renderFinanceTab();
+  showToast('Đã đồng bộ lịch sử trả lãi.');
 }
 
 /* ---------- Sửa / đổi lãi suất khoản vay ngoài ---------- */
