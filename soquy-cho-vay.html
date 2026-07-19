@@ -1037,13 +1037,18 @@ function calcCashSummary(){
   const tongNapVon   = sum(t=>t.type===TX_TYPE.NAP_VON);
   const tongRutVon   = -sum(t=>t.type===TX_TYPE.RUT_VON);
   const tongGiaiNgan = -sum(t=>t.type===TX_TYPE.GIAI_NGAN);
-  const tongThuLai   = sum(t=>t.type===TX_TYPE.THU_LAI);
+  /* tongHoanLai lưu riêng để minh bạch (số tiền đã hoàn cho khách khi tất toán sớm — tính lại đúng
+     số ngày vay thực tế). tongThuLai PHẢI trừ phần này đi, nếu không "lãi đã thu" và ROI tính từ đó
+     sẽ bị thổi phồng — vì tiền hoàn lại đã thực sự rời khỏi quỹ. Amount của HOAN_LAI đã lưu âm sẵn
+     (outflow) nên cộng thẳng vào là trừ đúng, không cần đảo dấu. */
+  const tongHoanLai  = -sum(t=>t.type===TX_TYPE.HOAN_LAI);
+  const tongThuLai   = sum(t=>t.type===TX_TYPE.THU_LAI) + sum(t=>t.type===TX_TYPE.HOAN_LAI);
   const tongThuGoc   = sum(t=>t.type===TX_TYPE.THU_GOC);
   const tongVayNgoaiNhan   = sum(t=>t.type===TX_TYPE.VAY_NGOAI_NHAN);
   const tongVayNgoaiTraLai = -sum(t=>t.type===TX_TYPE.VAY_NGOAI_TRA_LAI);
   const tongVayNgoaiTraGoc = -sum(t=>t.type===TX_TYPE.VAY_NGOAI_TRA_GOC);
   const soDu = cashLedger.reduce((s,t)=>s+t.amount,0);
-  return { tongNapVon, tongRutVon, tongGiaiNgan, tongThuLai, tongThuGoc, tongVayNgoaiNhan, tongVayNgoaiTraLai, tongVayNgoaiTraGoc, soDu };
+  return { tongNapVon, tongRutVon, tongGiaiNgan, tongThuLai, tongHoanLai, tongThuGoc, tongVayNgoaiNhan, tongVayNgoaiTraLai, tongVayNgoaiTraGoc, soDu };
 }
 /* Di trú 1 lần: dựng lại sổ quỹ dòng tiền từ dữ liệu khoản vay đã có sẵn
    (áp dụng cho dữ liệu được tạo trước khi có tính năng Sổ quỹ) */
@@ -2831,6 +2836,15 @@ async function submitSettle(id){
       ghiChu:'Thu lãi khi tất toán (nợ treo + điều chỉnh theo số ngày thực vay nếu có)',
       nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
   }
+  if(hoanLai>0){
+    /* Ghi 1 dòng ÂM vào lịch sử thu lãi của khoản vay để "Tổng lãi đã thu" tính theo từng khoản vay
+       (calcTongLaiDaThu, hiển thị ở chi tiết khoản vay và card dashboard) khớp với số liệu Sổ quỹ
+       chung (đã trừ Hoàn lãi ở calcCashSummary) — tránh 2 nơi cùng tên "Tổng lãi đã thu" nhưng lệch
+       số vì 1 nơi có trừ hoàn lãi còn nơi kia không. */
+    loan.lichSuThuLai.push({ id:uid(), ngayThu:ngay, soKy:0, soTien:-hoanLai,
+      ghiChu:'Hoàn lãi thu thừa khi tất toán sớm (tính lại theo đúng số ngày vay thực tế)',
+      nguoiThucHien:currentUser, timestamp:new Date().toISOString() });
+  }
   await saveLoans();
   await addCashTx({type:TX_TYPE.THU_GOC, amount:gocThu, ngay:ngay, loanId:loan.id, khachHang:loan.tenKhachHang, ghiChu:ghichu||'Thu hồi gốc khi tất toán'});
   if(thuThemLai>0){
@@ -3123,6 +3137,7 @@ async function exportExcelReport(){
       ['Tổng đã rút vốn khỏi quỹ', fmtMoney(cash.tongRutVon)],
       ['Tổng đã giải ngân cho vay — luỹ kế', fmtMoney(cash.tongGiaiNgan)],
       ['Tổng đã thu hồi gốc — tất toán + trả góp giảm gốc', fmtMoney(cash.tongThuGoc)],
+      ['Tổng đã hoàn lãi (thu thừa khi tất toán sớm)', fmtMoney(cash.tongHoanLai)],
     ];
     XLSX.utils.book_append_sheet(wb, sheetFrom(['Chỉ tiêu','Giá trị'], overviewRows,
       [{width:40}, {width:28, align:'right'}]), 'Tổng quan');
@@ -3246,6 +3261,7 @@ function openCashLedger(){
       <div class="k">Tổng đã rút vốn</div><div class="v">${fmtMoney(cash.tongRutVon)}</div>
       <div class="k">Tổng đã giải ngân (luỹ kế)</div><div class="v">${fmtMoney(cash.tongGiaiNgan)}</div>
       <div class="k">Tổng đã thu lãi</div><div class="v">${fmtMoney(cash.tongThuLai)}</div>
+      <div class="k">Tổng đã hoàn lãi (tất toán sớm)</div><div class="v">${fmtMoney(cash.tongHoanLai)}</div>
       <div class="k">Tổng đã thu hồi gốc</div><div class="v">${fmtMoney(cash.tongThuGoc)}</div>
       <div class="k">Tổng đã nhận vay ngoài</div><div class="v">${fmtMoney(cash.tongVayNgoaiNhan)}</div>
       <div class="k">Tổng đã trả lãi vay ngoài</div><div class="v">${fmtMoney(cash.tongVayNgoaiTraLai)}</div>
@@ -3263,6 +3279,7 @@ function openCashLedger(){
         <option value="${TX_TYPE.RUT_VON}">Rút vốn</option>
         <option value="${TX_TYPE.GIAI_NGAN}">Giải ngân</option>
         <option value="${TX_TYPE.THU_LAI}">Thu lãi</option>
+        <option value="${TX_TYPE.HOAN_LAI}">Hoàn lãi</option>
         <option value="${TX_TYPE.THU_GOC}">Thu hồi gốc</option>
         <option value="${TX_TYPE.VAY_NGOAI_NHAN}">Nhận tiền vay ngoài</option>
         <option value="${TX_TYPE.VAY_NGOAI_TRA_LAI}">Trả lãi vay ngoài</option>
@@ -3356,7 +3373,7 @@ function renderSettledLoansTab(){
     <table class="ledger schedule-table">
       <thead><tr>
         <th>Khách hàng</th><th style="text-align:right;">Tổng tiền gốc</th><th style="text-align:right;">Lãi/kỳ</th>
-        <th style="text-align:right;">Đơn giá lãi</th><th>Ngày bắt đầu</th><th style="text-align:right;">Chu kỳ</th>
+        <th style="text-align:right;">Đơn giá / Lãi suất</th><th>Ngày bắt đầu</th><th style="text-align:right;">Chu kỳ</th>
         <th>Đóng lãi gần nhất</th><th>Ngày tất toán</th><th style="text-align:right;">Tổng số ngày vay</th>
         <th style="text-align:right;">Số kỳ đã thu</th><th style="text-align:right;">Tổng lãi đã thu</th>
         <th>Lãi đã thu theo năm</th><th>Ghi chú</th>
@@ -3369,7 +3386,7 @@ function renderSettledLoansTab(){
             <td>${escapeHtml(l.tenKhachHang)}</td>
             <td class="num">${fmtMoney(l.tongTienGoc)}</td>
             <td class="num">${fmtMoney(d.laiKy)}</td>
-            <td class="num">${fmtInt(l.donGiaLai)}</td>
+            <td class="num">${laiSuatDisplay(l).value}</td>
             <td>${fmtDateVN(l.ngayBatDau)}</td>
             <td class="num">${fmtInt(l.chuKy)}</td>
             <td>${fmtDateVN(l.ngayDongLaiGanNhat)}</td>
@@ -4003,6 +4020,17 @@ function bdsTyLeVonGop(p){
   const tongCP = bdsTongCP(p);
   return tongCP>0 ? (Number(p.vonGop||0)/tongCP*100) : 0;
 }
+/* Hiển thị tỷ lệ vốn góp — phân biệt rõ 2 trường hợp: (1) chưa nhập đủ dữ liệu (vonGop hoặc tongCP
+   bằng 0) thì phải nói rõ "chưa nhập", KHÔNG được hiện "0%" trông giống như đã tính ra kết quả —
+   dễ bị hiểu nhầm là lỗi tính toán; (2) đã nhập đủ thì hiện đúng % tính được (kể cả khi tỷ lệ thực
+   sự rất nhỏ, gần 0). */
+function bdsTyLeVonGopDisplay(p){
+  const tongCP = bdsTongCP(p);
+  const vonGop = Number(p.vonGop||0);
+  if(tongCP<=0) return 'chưa nhập Tổng CP công trình';
+  if(vonGop<=0) return 'chưa nhập Vốn chủ tự góp';
+  return `≈${fmtPct(vonGop/tongCP*100)}`;
+}
 
 /* Chuẩn kế toán: Lãi vay = Dư nợ gốc đầu kỳ × Lãi suất năm ÷ 365 × Số ngày thực tế kỳ đó (ACT/365) */
 function bdsRecalcSchedule(p){
@@ -4058,7 +4086,13 @@ function bdsComputeMetrics(p){
       const flows = [-vonTuCo, ...rows.map((r,i)=> i===rows.length-1 ? Number(r.dongTienRong||0)+tienVeKhiBan : Number(r.dongTienRong||0))];
       irr = bdsIRR(flows);
     } else if(vonTuCo>0){
-      irr = ((tienVeKhiBan/vonTuCo)-1)*100;
+      /* Không có dòng tiền tháng nào (bán ngay, chưa từng cho thuê) — vẫn phải quy đổi về năm cho
+         đúng nhãn "IRR quy năm", dựa trên số ngày nắm giữ thực tế từ lúc góp vốn đến lúc bán. */
+      const ngayBatDauNamGiu = p.ngayGiaiNgan || p.ngayKhoiCong;
+      const soNgayNamGiu = (ngayBatDauNamGiu && p.ban.ngayBan) ? Math.max(1, daysBetween(ngayBatDauNamGiu, p.ban.ngayBan)) : null;
+      const tongSuatSinhLoi = (tienVeKhiBan/vonTuCo) - 1;
+      const heSo = 1+tongSuatSinhLoi;
+      irr = (soNgayNamGiu && heSo>0) ? (Math.pow(heSo, 365/soNgayNamGiu) - 1) * 100 : tongSuatSinhLoi*100;
     }
   }
   let thangHoaVon = null;
@@ -4092,7 +4126,7 @@ function renderBdsTab(){
         <div class="meta">${escapeHtml(p.diaChi||'—')}${p.soPhong?` · ${p.soPhong} phòng`:''}</div>
         <div class="kpi-mini-grid">
           <div><div class="k">Tổng CP công trình</div><div class="v">${fmtMoney(bdsTongCP(p))}</div></div>
-          <div><div class="k">Vốn chủ tự góp${m.tyLeVonGop?` (${fmtPct(m.tyLeVonGop)})`:''}</div><div class="v">${fmtMoney(p.vonGop)}</div></div>
+          <div><div class="k">Vốn chủ tự góp${p.vonGop?` (${bdsTyLeVonGopDisplay(p)})`:' (chưa nhập)'}</div><div class="v">${fmtMoney(p.vonGop)}</div></div>
           <div><div class="k">Dòng tiền tháng gần nhất</div><div class="v ${thangGanNhat && thangGanNhat.dongTienRong<0?'neg':'pos'}">${thangGanNhat?fmtMoney(thangGanNhat.dongTienRong):'—'}</div></div>
           <div><div class="k">Dòng tiền vận hành lũy kế</div><div class="v ${m.dongTienVanHanhLuyKe<0?'neg':'pos'}">${fmtMoney(m.dongTienVanHanhLuyKe)}</div></div>
         </div>
@@ -4248,7 +4282,7 @@ function bdsDetailHtml(pid){
 
     <div class="cards" style="margin:16px 0 4px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
       <div class="card"><div class="label">Tổng CP công trình (cả dự án)</div><div class="value">${fmtMoney(bdsTongCP(p))}</div></div>
-      <div class="card"><div class="label">Vốn chủ tự góp (${fmtPct(m.tyLeVonGop)} tổng CP)</div><div class="value">${fmtMoney(p.vonGop)}</div></div>
+      <div class="card"><div class="label">Vốn chủ tự góp (${bdsTyLeVonGopDisplay(p)} tổng CP)</div><div class="value">${fmtMoney(p.vonGop)}</div></div>
       <div class="card"><div class="label">Vốn tự bỏ ra thực tế</div><div class="value">${fmtMoney(m.vonTuCo)}</div></div>
       <div class="card ${m.dongTienVanHanhLuyKe<0?'danger':'ok'}"><div class="label">Dòng tiền vận hành lũy kế</div><div class="value">${fmtMoney(m.dongTienVanHanhLuyKe)}</div></div>
       ${isVayNH?`
@@ -4268,7 +4302,7 @@ function bdsDetailHtml(pid){
         <div class="k">Ngày khởi công</div><div class="v">${fmtDateVN(p.ngayKhoiCong)}</div>
         <div class="k">Ngày hoàn thành</div><div class="v">${fmtDateVN(p.ngayHoanThanh)}</div>
         <div class="k">CP đất / Xây dựng / Khác (cả dự án)</div><div class="v">${fmtMoney(p.cpDat)} / ${fmtMoney(p.cpXayDung)} / ${fmtMoney(p.cpKhac)}</div>
-        <div class="k">Vốn chủ tự góp</div><div class="v" style="font-weight:700;">${fmtMoney(p.vonGop)} (≈${fmtPct(m.tyLeVonGop)} tổng CP công trình)</div>
+        <div class="k">Vốn chủ tự góp</div><div class="v" style="font-weight:700;">${fmtMoney(p.vonGop)} (${bdsTyLeVonGopDisplay(p)} tổng CP công trình)</div>
         <div class="k">Nguồn vốn góp</div><div class="v">${isVayNH?'Vay ngân hàng':'Vốn tự có'}</div>
         ${isVayNH?`<div class="k">Số tiền vay NH / Ngày giải ngân</div><div class="v">${fmtMoney(p.vonVayNH)} · ${fmtDateVN(p.ngayGiaiNgan)}</div>`:''}
         ${isVayNH && p.vayNH_tenNganHang?`<div class="k">Vay ngân hàng nào</div><div class="v">${escapeHtml(p.vayNH_tenNganHang)}</div>`:''}
