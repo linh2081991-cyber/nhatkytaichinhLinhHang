@@ -4130,7 +4130,6 @@ function openBdsForm(id){
     </div>
     <div class="detail-section" style="margin-top:6px;padding-top:10px;">
       <h3>Vốn chủ tự góp</h3>
-      <div class="small-note">Số tiền thực tế mình bỏ vào dự án chung — thường chỉ là 1 phần nhỏ trong Tổng CP công trình ở trên.</div>
       <div class="two-col">
         <div class="field"><label>Số tiền vốn góp (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_vonGop" value="${fmtInputMoney(p?p.vonGop:0)}" oninput="previewBdsVon()"></div>
         <div class="field">
@@ -4141,9 +4140,21 @@ function openBdsForm(id){
           </select>
         </div>
       </div>
-      <div class="two-col ${nguonVon==='vay_nh'?'':'hidden'}" id="bp_vaynh_wrap">
-        <div class="field"><label>Số tiền vay ngân hàng (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_vonVay" value="${fmtInputMoney(p?p.vonVayNH:0)}" oninput="previewBdsVon()"></div>
-        <div class="field"><label>Ngày giải ngân</label><input type="date" id="bp_ngayGiaiNgan" value="${p?p.ngayGiaiNgan||'':''}"></div>
+      <div class="${nguonVon==='vay_nh'?'':'hidden'}" id="bp_vaynh_wrap">
+        <div class="two-col">
+          <div class="field"><label>Số tiền vay ngân hàng (đ)</label><input type="text" inputmode="numeric" class="money-input" id="bp_vonVay" value="${fmtInputMoney(p?p.vonVayNH:0)}" oninput="previewBdsVon()"></div>
+          <div class="field"><label>Ngày giải ngân</label><input type="date" id="bp_ngayGiaiNgan" value="${p?p.ngayGiaiNgan||'':''}"></div>
+        </div>
+        <div class="field"><label>Vay ngân hàng nào</label><input type="text" id="bp_tenNganHang" value="${p?escapeHtml(p.vayNH_tenNganHang||''):''}" placeholder="VD: Vietcombank, BIDV, VIB..."></div>
+        <div class="small-note">Lãi suất theo quý (%/năm) — mỗi quý 1 mức khác nhau (thường ưu đãi năm đầu). Dùng để gợi ý tự động khi thêm tháng mới ở lịch vay, vẫn sửa được từng tháng nếu thực tế khác.</div>
+        <div class="two-col">
+          <div class="field"><label>Lãi suất Quý 1 (%/năm)</label><input type="number" step="0.01" id="bp_laiQ1" value="${p?p.vayNH_laiSuatQ1||'':''}"></div>
+          <div class="field"><label>Lãi suất Quý 2 (%/năm)</label><input type="number" step="0.01" id="bp_laiQ2" value="${p?p.vayNH_laiSuatQ2||'':''}"></div>
+        </div>
+        <div class="two-col">
+          <div class="field"><label>Lãi suất Quý 3 (%/năm)</label><input type="number" step="0.01" id="bp_laiQ3" value="${p?p.vayNH_laiSuatQ3||'':''}"></div>
+          <div class="field"><label>Lãi suất Quý 4 (%/năm)</label><input type="number" step="0.01" id="bp_laiQ4" value="${p?p.vayNH_laiSuatQ4||'':''}"></div>
+        </div>
       </div>
       <div class="preview-line" id="bdsVonPreview">—</div>
     </div>
@@ -4193,6 +4204,11 @@ async function submitBdsForm(id){
     nguonVonGop: nguonVonGop,
     vonVayNH: nguonVonGop==='vay_nh' ? moneyVal('bp_vonVay') : 0,
     ngayGiaiNgan: nguonVonGop==='vay_nh' ? document.getElementById('bp_ngayGiaiNgan').value : '',
+    vayNH_tenNganHang: nguonVonGop==='vay_nh' ? document.getElementById('bp_tenNganHang').value.trim() : '',
+    vayNH_laiSuatQ1: nguonVonGop==='vay_nh' ? (Number(document.getElementById('bp_laiQ1').value)||0) : 0,
+    vayNH_laiSuatQ2: nguonVonGop==='vay_nh' ? (Number(document.getElementById('bp_laiQ2').value)||0) : 0,
+    vayNH_laiSuatQ3: nguonVonGop==='vay_nh' ? (Number(document.getElementById('bp_laiQ3').value)||0) : 0,
+    vayNH_laiSuatQ4: nguonVonGop==='vay_nh' ? (Number(document.getElementById('bp_laiQ4').value)||0) : 0,
     ghiChu: document.getElementById('bp_ghiChu').value.trim()
   };
   let p;
@@ -4255,6 +4271,8 @@ function bdsDetailHtml(pid){
         <div class="k">Vốn chủ tự góp</div><div class="v" style="font-weight:700;">${fmtMoney(p.vonGop)} (≈${fmtPct(m.tyLeVonGop)} tổng CP công trình)</div>
         <div class="k">Nguồn vốn góp</div><div class="v">${isVayNH?'Vay ngân hàng':'Vốn tự có'}</div>
         ${isVayNH?`<div class="k">Số tiền vay NH / Ngày giải ngân</div><div class="v">${fmtMoney(p.vonVayNH)} · ${fmtDateVN(p.ngayGiaiNgan)}</div>`:''}
+        ${isVayNH && p.vayNH_tenNganHang?`<div class="k">Vay ngân hàng nào</div><div class="v">${escapeHtml(p.vayNH_tenNganHang)}</div>`:''}
+        ${isVayNH?`<div class="k">Lãi suất theo quý (%/năm)</div><div class="v">Q1: ${p.vayNH_laiSuatQ1||0} · Q2: ${p.vayNH_laiSuatQ2||0} · Q3: ${p.vayNH_laiSuatQ3||0} · Q4: ${p.vayNH_laiSuatQ4||0}</div>`:''}
       </div>
       ${canStaff?`
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center;">
@@ -4347,13 +4365,22 @@ function renderBdsDetailModal(pid){
 }
 
 /* ---------- lịch tháng: thêm / sửa / xoá dòng ---------- */
+/* Gợi ý lãi suất %/năm theo đúng quý kể từ tháng giải ngân (Q1=tháng 1-3, Q2=4-6, Q3=7-9, Q4=10-12+)
+   — vì lãi vay NH thường ưu đãi khác nhau mỗi quý năm đầu. Chỉ dùng làm gợi ý mặc định khi thêm
+   tháng mới, ô lãi suất từng tháng vẫn sửa tay được nếu thực tế ngân hàng áp khác. */
+function bdsGoiYLaiSuatQuy(p, soThuTuThang){
+  const quy = Math.min(4, Math.max(1, Math.ceil(soThuTuThang/3)));
+  const rates = [p.vayNH_laiSuatQ1, p.vayNH_laiSuatQ2, p.vayNH_laiSuatQ3, p.vayNH_laiSuatQ4];
+  return Number(rates[quy-1]||0);
+}
 async function bdsAddMonthRow(pid){
   const p = bdsProjects.find(x=>x.id===pid); if(!p) return;
   const rows = p.lichThang || (p.lichThang=[]);
   const last = rows[rows.length-1];
   const kyMoi = last && last.ky ? addMonthsToStr(last.ky, 1) : (p.ngayGiaiNgan || p.ngayKhoiCong || todayStr());
   const duNoMoi = last ? last.duNoCuoiKy : Number(p.vonVayNH||0);
-  const laiSuatMoi = last ? Number(last.laiSuat||0) : 0;
+  const goiYQuy = p.nguonVonGop==='vay_nh' ? bdsGoiYLaiSuatQuy(p, rows.length+1) : 0;
+  const laiSuatMoi = goiYQuy>0 ? goiYQuy : (last ? Number(last.laiSuat||0) : 0);
   const goiYThueThang = Number((p.choThueNguyenCan||{}).giaThueThoaThuan||0);
   rows.push({ id:uid(), ky:kyMoi, duNoDauKy:duNoMoi, laiSuat:laiSuatMoi, soNgay:0, tienLaiNH:0, traGoc:0, duNoCuoiKy:0,
     doanhThuChoThue: p.trangThai===BDS_STATUS.CHO_THUE ? goiYThueThang : 0, chiPhiVanHanh:0, dongTienRong:0 });
