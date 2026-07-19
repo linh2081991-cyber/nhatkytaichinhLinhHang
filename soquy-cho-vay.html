@@ -896,27 +896,30 @@ function calcLaiTheoNam(loan){
   return byYear;
 }
 /* ---------- Quản lý dòng tiền: nợ lãi treo ----------
-   KHÔNG tự suy luận "chậm bao nhiêu kỳ" từ chênh lệch ngày tháng nữa (cách cũ dễ sai khi
-   khách vay nhiều gói ngày khác nhau, hoặc đã đóng đủ nhưng lịch ngày lệch). Thay vào đó
-   dùng 1 trường dữ liệu tường minh: loan.noLaiTichLuy — tổng lãi đang nợ, chỉ tăng khi
-   người dùng chủ động "Ghi nợ kỳ này" (khách chưa có tiền đóng đúng hạn), và giảm dần khi
-   khách đóng tiền thật (bất kể đóng ngày nào, xem submitCollect). Số kỳ hiển thị chỉ là
-   ước lượng tham khảo (nợ ÷ lãi mỗi kỳ), không phải nguồn dữ liệu gốc. */
+   Tổng nợ hiển thị (tienDangTre) = nợ đang ghi trong chu kỳ vay hiện tại (noLaiTichLuy,
+   tăng khi "Ghi nợ kỳ này", giảm dần khi khách đóng tiền thật) CỘNG lãi nợ cũ có từ trước
+   khi nhập sổ (tienLaiNoCu, nhập 1 lần lúc tạo khoản vay/vay ngoài). Gộp lại để trạng thái
+   "Đúng hạn / Đang nợ lãi" và các mục tổng hợp (dashboard, nhắc nợ) phản ánh đúng toàn bộ
+   số tiền khách đang nợ, không bỏ sót phần nợ cũ. noDangGhi giữ riêng vì soTienThucThu chỉ
+   đối chiếu với lịch phát sinh của khoản vay hiện tại, không liên quan tới nợ cũ trước đó. */
 function calcTinhTrangDongLai(loan){
-  if(loan.tatToan) return { tinhTrang:'DA_TAT_TOAN', soKyCham:0, tienDangTre:0 };
-  const tienDangTre = Math.max(0, Number(loan.noLaiTichLuy||0));
+  if(loan.tatToan) return { tinhTrang:'DA_TAT_TOAN', soKyCham:0, tienDangTre:0, noDangGhi:0, laiNoCu:0 };
+  const noDangGhi = Math.max(0, Number(loan.noLaiTichLuy||0));
+  const laiNoCu = Math.max(0, Number(loan.tienLaiNoCu||0));
+  const tienDangTre = noDangGhi + laiNoCu;
   const laiKy = calcLaiKy(loan);
   const soKyCham = laiKy>0 ? Math.round(tienDangTre/laiKy) : 0;
   return {
     tinhTrang: tienDangTre>0 ? 'CHAM_LAI' : 'DUNG_HAN',
-    soKyCham, tienDangTre
+    soKyCham, tienDangTre, noDangGhi, laiNoCu
   };
 }
 /* Số kỳ đã thu tính theo thời gian thực (không phụ thuộc việc nhập tay từng lần thu):
    dựa vào Ngày vay -> Ngày đóng lãi gần nhất, Chu kỳ, và hình thức Đầu kỳ/Cuối kỳ.
    Vì "Ngày đóng lãi gần nhất" luôn được cập nhật dù thu tiền thật hay chỉ Ghi nợ, số kỳ
    này phản ánh đúng số kỳ đã tới hạn xử lý. Số tiền lãi đã thu (gross) = số kỳ x lãi/kỳ.
-   Số tiền thực thu = số tiền lãi đã thu (gross) - số lãi khách đang còn nợ. */
+   Số tiền thực thu = số tiền lãi đã thu (gross) - nợ đang treo của lịch vay hiện tại
+   (không trừ lãi nợ cũ, vì lãi nợ cũ không thuộc chu kỳ phát sinh của khoản vay này). */
 function derive(loan){
   const laiKy = calcLaiKy(loan);
   const laiSuatNam = calcLaiSuatNam(loan);
@@ -925,7 +928,7 @@ function derive(loan){
   const soKyDaThu = calcSoKyDaThuBanDau(loan.ngayBatDau, loan.ngayDongLaiGanNhat, loan.chuKy, loan.hinhThucThuLai);
   const soTienLaiPhatSinh = soKyDaThu * laiKy;
   const dongLai = calcTinhTrangDongLai(loan);
-  const soTienThucThu = Math.max(0, soTienLaiPhatSinh - dongLai.tienDangTre);
+  const soTienThucThu = Math.max(0, soTienLaiPhatSinh - dongLai.noDangGhi);
   return {
     laiKy, laiSuatNam, trangThai, denHanTiep,
     tongSoNgayVay: calcTongSoNgayVay(loan),
@@ -936,7 +939,9 @@ function derive(loan){
     laiTheoNam: calcLaiTheoNam(loan),
     tinhTrangDongLai: dongLai.tinhTrang,
     soKyChamThanhToan: dongLai.soKyCham,
-    tienDangTre: dongLai.tienDangTre
+    tienDangTre: dongLai.tienDangTre,
+    noDangGhi: dongLai.noDangGhi,
+    laiNoCu: dongLai.laiNoCu
   };
 }
 
@@ -1265,19 +1270,17 @@ function renderDashboard(){
   const tongLaiThu = loans.reduce((s,l)=>s+calcTongLaiDaThu(l),0);
   const dueSoonDays = settings.dueSoonDays||3;
   const sapDenHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.NHAC_NO).length;
-  const quaHan = active.filter(l=>calcTrangThai(l,dueSoonDays)===STATUS.QUA_HAN).length;
   const tongTienDangTre = active.reduce((s,l)=>s+derive(l).tienDangTre,0);
   const cash = calcCashSummary();
 
   const cards = [
     {label:'Số dư quỹ hiện tại', value: fmtMoney(cash.soDu), cls: cash.soDu<0?'danger':'ok', click:'cash'},
     {label:'Tổng dư nợ gốc (đang cho vay)', value: fmtMoney(tongDuNo), cls:''},
-    {label:'Tổng lãi đã thu (mọi kỳ)', value: fmtMoney(tongLaiThu), cls:'ok'},
-    {label:'Lãi đang treo (chậm, chưa thu)', value: fmtMoney(tongTienDangTre), cls: tongTienDangTre>0?'danger':'ok'},
-    {label:'Sắp đến hạn', value: sapDenHan, cls: sapDenHan? 'warn':''},
-    {label:'Quá hạn', value: quaHan, cls: quaHan? 'danger':''}
+    {label:'Tổng lãi đã thu (mọi kỳ)', value: fmtMoney(tongLaiThu), cls:'ok', click:'laidathu'},
+    {label:'Lãi đang treo (chậm, chưa thu)', value: fmtMoney(tongTienDangTre), cls: tongTienDangTre>0?'danger':'ok', click:'laidangtreo'},
+    {label:'Khách sắp đến hạn', value: sapDenHan, cls: sapDenHan? 'warn':'', click:'sapdenhan'}
   ];
-  const cardClickFn = { cash:'openCashLedger()' };
+  const cardClickFn = { cash:'openCashLedger()', laidathu:'openTongLaiDaThuDetail()', laidangtreo:'openLaiDangTreoDetail()', sapdenhan:'openSapDenHanDetail()' };
   document.getElementById('dashboardCards').innerHTML = cards.map(c=>`
     <div class="card ${c.cls} ${c.click?'clickable':''}" ${c.click?`onclick="${cardClickFn[c.click]}"`:''}>
       <div class="label">${c.label}</div>
@@ -1302,6 +1305,169 @@ function computeKhachChamLai(){
     byKhach[key].khoanVay.push({ id:l.id, goc:l.tongTienGoc, soKyCham:d.soKyChamThanhToan, tienDangTre:d.tienDangTre });
   });
   return Object.values(byKhach).sort((a,b)=>b.tongTienDangTre-a.tongTienDangTre);
+}
+
+/* ---------- Chi tiết "Tổng lãi đã thu" — phân bổ theo năm ---------- */
+function calcTongLaiTheoNamToanBo(){
+  const byYear = {};
+  loans.forEach(l=>{
+    const y = calcLaiTheoNam(l);
+    Object.entries(y).forEach(([year, amt])=>{
+      byYear[year] = (byYear[year]||0) + amt;
+    });
+  });
+  return byYear;
+}
+function getLaiTheoNamChiTietTheoKhach(year){
+  const rows = [];
+  loans.forEach(l=>{
+    const amt = calcLaiTheoNam(l)[year] || 0;
+    if(amt>0) rows.push({ id:l.id, tenKhachHang:l.tenKhachHang, soTien:amt, tongTienGoc:l.tongTienGoc });
+  });
+  return rows.sort((a,b)=>b.soTien-a.soTien);
+}
+function openTongLaiDaThuDetail(){
+  const byYear = calcTongLaiTheoNamToanBo();
+  const years = Object.keys(byYear).sort((a,b)=>b.localeCompare(a));
+  const tong = Object.values(byYear).reduce((a,b)=>a+b,0);
+  openModal(`
+    <h2>Tổng lãi đã thu — phân bổ theo năm</h2>
+    <div class="modal-sub">Tổng tất cả các năm: <b>${fmtMoney(tong)}</b></div>
+    ${years.length ? years.map(y=>`
+      <div class="detail-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <div>
+            <h3 style="margin:0;">Lãi thu năm ${y}</h3>
+            <div class="value" style="font-size:1.3rem;font-weight:700;color:var(--success);margin-top:4px;">${fmtMoney(byYear[y])}</div>
+          </div>
+          <button class="btn btn-outline" onclick="openLaiNamChiTiet('${y}')">Chi tiết</button>
+        </div>
+      </div>
+    `).join('') : '<div class="empty-state">Chưa có lãi thu được ghi nhận.</div>'}
+    <div class="modal-close-row"><button class="btn btn-ghost" onclick="closeModal()">Đóng</button></div>
+  `);
+}
+function openLaiNamChiTiet(year){
+  const rows = getLaiTheoNamChiTietTheoKhach(year);
+  const tong = rows.reduce((s,r)=>s+r.soTien,0);
+  openModal(`
+    <h2>Chi tiết lãi thu năm ${year}</h2>
+    <div class="modal-sub">Tổng: <b>${fmtMoney(tong)}</b> — ${fmtInt(rows.length)} khách có phát sinh lãi trong năm</div>
+    ${rows.length ? rows.map(r=>`
+      <div class="history-row" style="cursor:pointer;" onclick="closeModal();openLoanDetail('${r.id}')">
+        <span>${escapeHtml(r.tenKhachHang)} <span class="small-note">(gốc ${fmtMoney(r.tongTienGoc)})</span></span>
+        <span class="amt" style="color:var(--success);">${fmtMoney(r.soTien)}</span>
+      </div>
+    `).join('') : '<div class="small-note">Không có dữ liệu.</div>'}
+    <div class="modal-close-row">
+      <button class="btn btn-ghost" onclick="openTongLaiDaThuDetail()">Quay lại</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Đóng</button>
+    </div>
+  `);
+}
+
+/* ---------- Chi tiết "Lãi đang treo" — theo từng khách ---------- */
+function computeKhachDangNo(){
+  const active = loans.filter(l=>!l.tatToan);
+  const byKhach = {};
+  active.forEach(l=>{
+    const d = derive(l);
+    if(d.tienDangTre<=0) return;
+    const key = l.tenKhachHang;
+    if(!byKhach[key]) byKhach[key] = { tenKhachHang:key, tongNo:0, khoanVay:[] };
+    byKhach[key].tongNo += d.tienDangTre;
+    byKhach[key].khoanVay.push({ id:l.id, goc:l.tongTienGoc, noDangGhi:d.noDangGhi, laiNoCu:d.laiNoCu, tong:d.tienDangTre });
+  });
+  return Object.values(byKhach).sort((a,b)=>b.tongNo-a.tongNo);
+}
+function openLaiDangTreoDetail(){
+  const list = computeKhachDangNo();
+  const tong = list.reduce((s,k)=>s+k.tongNo,0);
+  openModal(`
+    <h2>Lãi đang treo — theo khách</h2>
+    <div class="modal-sub">Tổng: <b>${fmtMoney(tong)}</b> — ${fmtInt(list.length)} khách đang nợ</div>
+    ${list.length ? list.map(k=>`
+      <div class="detail-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <b>${escapeHtml(k.tenKhachHang)}</b>
+          <span style="font-weight:700;color:var(--danger);">${fmtMoney(k.tongNo)}</span>
+        </div>
+        ${k.khoanVay.map(kv=>`
+          <div class="history-row" style="cursor:pointer;" onclick="closeModal();openLoanDetail('${kv.id}')">
+            <span>Gốc ${fmtMoney(kv.goc)}${kv.noDangGhi>0?` · Nợ đang treo ${fmtMoney(kv.noDangGhi)}`:''}${kv.laiNoCu>0?` · Nợ cũ ${fmtMoney(kv.laiNoCu)}`:''}</span>
+            <span class="amt" style="color:var(--danger);">${fmtMoney(kv.tong)}</span>
+          </div>
+        `).join('')}
+      </div>
+    `).join('') : '<div class="empty-state">Không có khách nào đang nợ lãi.</div>'}
+    <div class="modal-close-row"><button class="btn btn-ghost" onclick="closeModal()">Đóng</button></div>
+  `);
+}
+
+/* ---------- Chi tiết "Khách sắp đến hạn" — nội dung nhắc nợ copy được ---------- */
+function computeKhachSapDenHan(){
+  const dueSoonDays = settings.dueSoonDays||3;
+  const active = loans.filter(l=>!l.tatToan);
+  const byKhach = {};
+  active.forEach(l=>{
+    if(calcTrangThai(l, dueSoonDays) !== STATUS.NHAC_NO) return;
+    const d = derive(l);
+    const key = l.tenKhachHang;
+    if(!byKhach[key]) byKhach[key] = { tenKhachHang:key, khoanVay:[] };
+    byKhach[key].khoanVay.push({
+      id: l.id, laiKy: d.laiKy, tuNgay: l.ngayDongLaiGanNhat, denNgay: d.denHanTiep, laiCu: d.tienDangTre
+    });
+  });
+  return Object.values(byKhach);
+}
+function buildReminderMessage(khach){
+  const lines = [];
+  lines.push(khach.tenKhachHang);
+  khach.khoanVay.forEach(kv=>{
+    lines.push(`Lãi: ${fmtMoney(kv.laiKy)} (từ ${fmtDateVN(kv.tuNgay)} đến ${fmtDateVN(kv.denNgay)})`);
+    if(kv.laiCu>0){
+      lines.push(`+ Lãi cũ: ${fmtMoney(kv.laiCu)}`);
+    }
+  });
+  const tong = khach.khoanVay.reduce((s,kv)=>s+kv.laiKy+kv.laiCu,0);
+  lines.push('—');
+  lines.push(`Tổng cần đóng: ${fmtMoney(tong)}`);
+  return lines.join('\n');
+}
+function openSapDenHanDetail(){
+  const list = computeKhachSapDenHan();
+  openModal(`
+    <h2>Khách sắp đến hạn</h2>
+    <div class="modal-sub">${fmtInt(list.length)} khách cần nhắc trong ${fmtInt(settings.dueSoonDays||3)} ngày tới</div>
+    ${list.length ? list.map((k,i)=>{
+      const message = buildReminderMessage(k);
+      const tong = k.khoanVay.reduce((s,kv)=>s+kv.laiKy+kv.laiCu,0);
+      return `
+      <div class="detail-section">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <b>${escapeHtml(k.tenKhachHang)}</b>
+          <span style="font-weight:700;">${fmtMoney(tong)}</span>
+        </div>
+        <textarea readonly id="remindMsg_${i}" style="width:100%;min-height:110px;padding:10px;border:1px solid var(--line);border-radius:8px;font-family:var(--font-mono);font-size:0.85rem;background:var(--paper);color:var(--ink);resize:vertical;">${escapeHtml(message)}</textarea>
+        <button class="btn btn-outline" style="margin-top:8px;" onclick="copyReminderText('remindMsg_${i}')">Sao chép nội dung</button>
+      </div>`;
+    }).join('') : '<div class="empty-state">Không có khách nào sắp đến hạn.</div>'}
+    <div class="modal-close-row"><button class="btn btn-ghost" onclick="closeModal()">Đóng</button></div>
+  `);
+}
+function copyReminderText(textareaId){
+  const el = document.getElementById(textareaId);
+  if(!el) return;
+  el.select();
+  el.setSelectionRange(0, 999999);
+  const done = ()=>showToast('Đã sao chép nội dung.');
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(el.value).then(done).catch(()=>{
+      try{ document.execCommand('copy'); done(); }catch(e){ showToast('Không sao chép được, hãy chọn và copy thủ công.'); }
+    });
+  }else{
+    try{ document.execCommand('copy'); done(); }catch(e){ showToast('Không sao chép được, hãy chọn và copy thủ công.'); }
+  }
 }
 
 function getFilteredSortedLoans(){
