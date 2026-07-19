@@ -1759,6 +1759,7 @@ async function submitLoanForm(){
   const hinhThuc = document.getElementById('f_hinhthuc').value;
   const err = document.getElementById('loanFormErr');
   if(!ten || !goc || !chuky || !ngaybd || !ngayDongLai){ err.textContent='Điền đủ Tên, Gốc, Chu kỳ, Ngày vay, Ngày đóng lãi gần nhất.'; return; }
+  if(ngayDongLai < ngaybd){ err.textContent='Ngày đóng lãi gần nhất không được trước Ngày vay.'; return; }
   const loan = {
     id: uid(),
     tenKhachHang: ten,
@@ -2011,6 +2012,10 @@ async function submitEditLoan(id){
   const err = document.getElementById('editErr');
 
   const sensitiveChanged = (newGoc!==loan.tongTienGoc || newDongia!==loan.donGiaLai || newChuky!==loan.chuKy || newNgaybd!==loan.ngayBatDau || newNgayDongLai!==(loan.ngayDongLaiGanNhat||loan.ngayBatDau));
+  if(newNgaybd && newNgayDongLai && newNgayDongLai < newNgaybd){
+    err.textContent = 'Ngày đóng lãi gần nhất không được trước Ngày vay.';
+    return;
+  }
   if(sensitiveChanged && pin !== settings.adminPin){
     err.textContent = 'Sai mã PIN Quản trị — không thể đổi Gốc/Đơn giá/Chu kỳ/Ngày vay/Ngày đóng lãi gần nhất.';
     return;
@@ -2835,6 +2840,7 @@ async function submitExternalLoanForm(){
   const hinhThuc = document.getElementById('x_hinhthuc').value;
   const err = document.getElementById('extLoanFormErr');
   if(!ten || !goc || !chuky || !ngaybd || !ngayTraLai){ err.textContent='Điền đủ Người cho vay, Gốc, Chu kỳ, Ngày vay, Ngày trả lãi gần nhất.'; return; }
+  if(ngayTraLai < ngaybd){ err.textContent='Ngày trả lãi gần nhất không được trước Ngày vay.'; return; }
   const ext = {
     id: uid(), tenKhachHang: ten, hinhThucThuLai: hinhThuc, tongTienGoc: goc, donGiaLai: dongia||0,
     chuKy: chuky, ngayBatDau: ngaybd, ngayDongLaiGanNhat: ngayTraLai,
@@ -3067,6 +3073,10 @@ async function submitEditExternalLoan(id){
   const pin = document.getElementById('xe_adminpin').value;
   const err = document.getElementById('extEditErr');
   const sensitiveChanged = (newGoc!==loan.tongTienGoc || newDongia!==loan.donGiaLai || newChuky!==loan.chuKy || newNgaybd!==loan.ngayBatDau || newNgayTraLai!==(loan.ngayDongLaiGanNhat||loan.ngayBatDau));
+  if(newNgaybd && newNgayTraLai && newNgayTraLai < newNgaybd){
+    err.textContent = 'Ngày trả lãi gần nhất không được trước Ngày vay.';
+    return;
+  }
   if(sensitiveChanged && pin !== settings.adminPin){
     err.textContent = 'Sai mã PIN Quản trị — không thể đổi Gốc/Đơn giá/Chu kỳ/Ngày vay/Ngày trả lãi gần nhất.';
     return;
