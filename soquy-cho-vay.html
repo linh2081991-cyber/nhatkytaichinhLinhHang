@@ -1888,7 +1888,30 @@ function renderResultsTab(){
 /* ============================================================
    MODAL SYSTEM
    ============================================================ */
+let _bodyScrollY = 0;
+let _modalLocked = false;
+function lockBodyScroll(){
+  if(_modalLocked) return;
+  _modalLocked = true;
+  _bodyScrollY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.position = 'fixed';
+  document.body.style.top = `-${_bodyScrollY}px`;
+  document.body.style.left = '0';
+  document.body.style.right = '0';
+  document.body.style.width = '100%';
+}
+function unlockBodyScroll(){
+  if(!_modalLocked) return;
+  _modalLocked = false;
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.width = '';
+  window.scrollTo(0, _bodyScrollY);
+}
 function openModal(html, extraClass){
+  lockBodyScroll();
   document.getElementById('modalRoot').innerHTML = `<div class="modal-overlay" onmousedown="if(event.target===this) closeModal()"><div class="modal-card ${extraClass||''}">
     <div class="modal-topbar">
       <button class="modal-back-btn" onclick="closeModal()" type="button">
@@ -1900,7 +1923,10 @@ function openModal(html, extraClass){
   </div></div>`;
   initMoneyInputs(document.getElementById('modalRoot'));
 }
-function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function closeModal(){
+  document.getElementById('modalRoot').innerHTML='';
+  unlockBodyScroll();
+}
 function showToast(msg){
   const root = document.getElementById('toastRoot');
   root.innerHTML = `<div class="toast">${escapeHtml(msg)}</div>`;
